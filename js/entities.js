@@ -1,0 +1,231 @@
+// ---------------------------------------------------------------------------
+// entities.js — everything that moves or can be touched.
+//
+// Each entity has a hitbox {x, y, w, h} (top-left corner + size) and an
+// update(dt, ...) method. Drawing lives in render.js to keep logic and
+// visuals separate.
+// ---------------------------------------------------------------------------
+
+// Helper: place a box of size w x h standing on the floor of tile (col, row).
+function spawnOnTile(spawn, w, h) {
+  return { x: spawn.col * TILE + (TILE - w) / 2, y: (spawn.row + 1) * TILE - h };
+}
+
+// ===========================================================================
+// Player
+// ===========================================================================
+class Player {
+  constructor(x, y) {
+    this.w = PLAYER.width;
+    this.h = PLAYER.height;
+    this.respawn(x, y);
+  }
+
+  respawn(x, y) {
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.facing = 1;
+    this.onGround = false;
+    this.dead = false;
+    this.coyoteTimer = 0;
+    this.jumpBufferTimer = 0;
+    this.jumpCutDone = true;
+    this.dropTimer = 0;
+    this.dropThrough = false;
+    this.scaleX = 1;        // squash & stretch (visual only)
+    this.scaleY = 1;
+    this.runTime = 0;       // drives the running animation
+    this.prevBottom = y + this.h;
+  }
+
+  update(dt, level, particles) {
+    this.prevBottom = this.y + this.h;
+
+    // --- Horizontal movement: accelerate toward input, otherwise slow down.
+    const dir = (Input.held("right") ? 1 : 0) - (Input.held("left") ? 1 : 0);
+    if (dir !== 0) {
+      const accel = this.onGround ? PLAYER.runAccel : PLAYER.airAccel;
+      // Turning around is snappier: add friction when pushing against velocity.
+      const turning = Math.sign(this.vx) === -dir ? PLAYER.friction : 0;
+      this.vx += dir * (accel + turning) * dt;
+      this.facing = dir;
+    } else {
+      const decel = (this.onGround ? PLAYER.friction : PLAYER.airDrag) * dt;
+      this.vx = Math.abs(this.vx) <= decel ? 0 : this.vx - Math.sign(this.vx) * decel;
+    }
+    this.vx = Math.max(-PLAYER.maxSpeed, Math.min(PLAYER.maxSpeed, this.vx));
+
+    // --- Jump timers (coyote time + jump buffering make jumping feel fair).
+    this.coyoteTimer = this.onGround ? PLAYER.coyoteTime : this.coyoteTimer - dt;
+    this.jumpBufferTimer = Input.pressed("jump") ? PLAYER.jumpBuffer : this.jumpBufferTimer - dt;
+
+    if (this.jumpBufferTimer > 0 && this.coyoteTimer > 0) {
+      this.vy = -PLAYER.jumpSpeed;
+      this.jumpBufferTimer = 0;
+      this.coyoteTimer = 0;
+      this.jumpCutDone = false;
+      this.scaleX = 0.7;
+      this.scaleY = 1.3;
+      Sound.jump();
+      particles.burst(this.x + this.w / 2, this.y + this.h, 6, { color: "#e8e2d0", speed: 80, angle: -Math.PI / 2, spread: Math.PI, gravity: 200, life: 0.3 });
+    }
+
+    // Variable jump height: letting go of jump early cuts the jump short.
+    if (!this.jumpCutDone && !Input.held("jump") && this.vy < 0) {
+      this.vy *= PLAYER.jumpCut;
+      this.jumpCutDone = true;
+    }
+
+    // --- Drop through one-way platforms.
+    if (Input.pressed("down") && this.onGround && level.onlyOneWayBelow(this)) {
+      this.dropTimer = PLAYER.dropThroughTime;
+    }
+    this.dropTimer -= dt;
+    this.dropThrough = this.dropTimer > 0;
+
+    // --- Gravity, then move & collide one axis at a time.
+    this.vy = Math.min(this.vy + PLAYER.gravity * dt, PLAYER.maxFall);
+    const wasOnGround = this.onGround;
+    const landingSpeed = this.vy;
+    level.moveX(this, this.vx * dt);
+    level.moveY(this, this.vy * dt);
+
+    if (this.onGround && !wasOnGround) {
+      // Squash on landing, harder landings squash more.
+      const impact = Math.min(landingSpeed / PLAYER.maxFall, 1);
+      this.scaleX = 1 + 0.35 * impact;
+      this.scaleY = 1 - 0.3 * impact;
+      if (impact > 0.4) {
+        particles.burst(this.x + this.w / 2, this.y + this.h, 8, { color: "#e8e2d0", speed: 100, angle: -Math.PI / 2, spread: Math.PI, gravity: 300, life: 0.35 });
+      }
+    }
+
+    // Ease squash & stretch back to normal.
+    this.scaleX += (1 - this.scaleX) * Math.min(1, 12 * dt);
+    this.scaleY += (1 - this.scaleY) * Math.min(1, 12 * dt);
+    this.runTime = this.onGround && Math.abs(this.vx) > 20 ? this.runTime + dt : 0;
+  }
+
+  // Called when the player jumps on an enemy.
+  bounce() {
+    this.vy = -(Input.held("jump") ? PLAYER.stompBounceHeld : PLAYER.stompBounce);
+    this.jumpCutDone = !Input.held("jump");
+    this.scaleX = 0.75;
+    this.scaleY = 1.25;
+  }
+
+  launch() {
+    this.vy = -PLAYER.springSpeed;
+    this.jumpCutDone = true; // releasing jump shouldn't cut a spring launch
+    this.coyoteTimer = 0;
+    this.scaleX = 0.6;
+    this.scaleY = 1.4;
+  }
+}
+
+// ===========================================================================
+// Walker enemy — patrols back and forth, turning at walls, ledges and spikes.
+// ===========================================================================
+class Walker {
+  constructor(spawn) {
+    this.w = ENEMY.width;
+    this.h = ENEMY.height;
+    Object.assign(this, spawnOnTile(spawn, this.w, this.h));
+    this.vx = -ENEMY.speed;
+    this.vy = 0;
+    this.onGround = false;
+    this.alive = true;
+    this.squashTimer = 0;
+    this.animTime = Math.random() * 10;
+  }
+
+  // An enemy is removed once it has finished its squash animation or fallen out.
+  get removable() {
+    return !this.alive && this.squashTimer <= 0;
+  }
+
+  update(dt, level) {
+    if (!this.alive) {
+      this.squashTimer -= dt;
+      return;
+    }
+    this.animTime += dt;
+    this.vy = Math.min(this.vy + PLAYER.gravity * dt, PLAYER.maxFall);
+
+    if (level.moveX(this, this.vx * dt)) this.vx = this.lastDir() * -ENEMY.speed;
+    level.moveY(this, this.vy * dt);
+
+    if (this.onGround) {
+      // Look one pixel ahead: is there floor under our front foot? Spikes ahead?
+      const dir = Math.sign(this.vx) || this.lastDir();
+      const aheadCol = Math.floor((dir > 0 ? this.x + this.w + 1 : this.x - 1) / TILE);
+      const feetRow = Math.floor((this.y + this.h - 1) / TILE);
+      if (!level.isStandable(aheadCol, feetRow + 1) || level.isSpike(aheadCol, feetRow)) {
+        this.vx = -dir * ENEMY.speed;
+      }
+    }
+    if (this.vx !== 0) this.dir = Math.sign(this.vx);
+
+    if (this.y > level.height) {
+      this.alive = false;
+      this.squashTimer = 0;
+    }
+  }
+
+  lastDir() {
+    return this.dir || -1;
+  }
+
+  squash() {
+    this.alive = false;
+    this.squashTimer = ENEMY.squashTime;
+  }
+}
+
+// ===========================================================================
+// Simple static pickups / props
+// ===========================================================================
+class Coin {
+  constructor(spawn) {
+    this.x = spawn.col * TILE + 8;
+    this.y = spawn.row * TILE + 8;
+    this.w = 16;
+    this.h = 16;
+    this.collected = false;
+    this.phase = spawn.col * 0.6; // offsets bob/spin so coins aren't in sync
+  }
+}
+
+class Spring {
+  constructor(spawn) {
+    // Only the bottom half of the tile is the springy part.
+    this.x = spawn.col * TILE + 2;
+    this.y = spawn.row * TILE + 16;
+    this.w = TILE - 4;
+    this.h = 16;
+    this.compress = 0; // 0..1 animation amount
+  }
+}
+
+class Checkpoint {
+  constructor(spawn) {
+    this.x = spawn.col * TILE;
+    this.y = spawn.row * TILE - TILE; // 2 tiles tall
+    this.w = TILE;
+    this.h = TILE * 2;
+    this.active = false;
+    // Where the player reappears after dying.
+    this.respawnPoint = spawnOnTile(spawn, PLAYER.width, PLAYER.height);
+  }
+}
+
+class Flag {
+  constructor(spawn) {
+    this.x = spawn.col * TILE + 10;
+    this.y = spawn.row * TILE - TILE * 3; // pole is 4 tiles tall
+    this.w = 12;
+    this.h = TILE * 4;
+  }
+}
