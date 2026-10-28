@@ -278,7 +278,7 @@ class Game {
           "← → to move   ·   Space to jump   ·   ↓ to drop through planks",
           "Hold jump to jump higher. Bounce on springs.",
           "",
-          blink(this.clock) ? "Press ENTER to start" : "",
+          blink(this.clock) ? "Press ENTER or click to start" : "",
           best,
         ], { dim: 0.45 });
         break;
@@ -290,7 +290,7 @@ class Game {
           `Score: ${this.score}   ·   Coins: ${this.coins}/${this.totalCoins}`,
           this.newBest ? "New best score!" : best,
           "",
-          blink(this.clock) ? "Press ENTER to try again" : "",
+          blink(this.clock) ? "Press ENTER or click to try again" : "",
         ], { titleColor: "#ff6b4a" });
         break;
       case "won": {
@@ -300,7 +300,7 @@ class Game {
           `Score ${r.base}  +  time bonus ${r.timeBonus}  +  lives bonus ${r.lifeBonus}`,
           `Final score: ${this.score}` + (this.newBest ? "   — New best!" : ""),
           "",
-          blink(this.clock) ? "Press ENTER to play again" : "",
+          blink(this.clock) ? "Press ENTER or click to play again" : "",
         ], { titleColor: "#4ade80", dim: 0.45 });
         break;
       }
@@ -338,6 +338,13 @@ document.getElementById("load-error")?.remove();
 const canvas = document.getElementById("game");
 const game = new Game(canvas);
 Input.init();
+
+// Clicking the game counts as pressing Enter (start / restart). It also gives
+// the page keyboard focus, which matters when the game is embedded in a frame.
+canvas.addEventListener("pointerdown", () => {
+  window.focus();
+  Input.justPressed.add("Enter");
+});
 
 let lastTime = performance.now();
 let accumulator = 0;
