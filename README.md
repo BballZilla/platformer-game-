@@ -27,6 +27,10 @@ to the `main` branch and save. GitHub then gives you a link such as
 | Pause | P or Esc |
 | Mute | M |
 
+**On a phone or tablet** on-screen buttons appear automatically: ◀ ▶ to move,
+**JUMP** to jump, ▼ to drop through platforms, ❚❚ to pause and ♪ to mute.
+Turn the phone sideways for the biggest screen.
+
 Collect coins, stomp enemies by landing on top of them, avoid spikes and pits,
 and reach the checkered flag. You have 3 lives; touching a checkpoint flag makes
 it your respawn point. Finishing faster and with lives left gives bonus points.
@@ -53,6 +57,7 @@ index.html         page + canvas, loads the scripts in order
 css/style.css      page layout / canvas scaling
 js/config.js       all tunable constants (physics, scoring, colors)
 js/input.js        keyboard -> actions ("left", "jump", ...)
+js/touch.js        on-screen buttons for phones and tablets
 js/audio.js        synthesized sound effects
 js/level.js        level map, tile lookup, collision against tiles
 js/particles.js    particle effects

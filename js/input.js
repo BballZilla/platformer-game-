@@ -7,19 +7,21 @@
 //   Input.pressed(action) true only on the update step the key went down
 // ---------------------------------------------------------------------------
 
+// "Touch..." codes come from the on-screen buttons (see touch.js).
 const KEY_BINDINGS = {
-  left:  ["ArrowLeft", "KeyA"],
-  right: ["ArrowRight", "KeyD"],
-  jump:  ["Space", "ArrowUp", "KeyW", "KeyZ"],
-  down:  ["ArrowDown", "KeyS"],
-  pause: ["KeyP", "Escape"],
-  start: ["Enter", "Space"],
-  mute:  ["KeyM"],
+  left:  ["ArrowLeft", "KeyA", "TouchLeft"],
+  right: ["ArrowRight", "KeyD", "TouchRight"],
+  jump:  ["Space", "ArrowUp", "KeyW", "KeyZ", "TouchJump"],
+  down:  ["ArrowDown", "KeyS", "TouchDown"],
+  pause: ["KeyP", "Escape", "TouchPause"],
+  start: ["Enter", "Space", "TouchJump"],
+  mute:  ["KeyM", "TouchMute"],
 };
 
 const Input = {
   down: new Set(),        // keys currently held
   justPressed: new Set(), // keys pressed since the last update step
+  touchMode: false,       // true once we know the player is using a touchscreen
 
   init() {
     const allKeys = new Set(Object.values(KEY_BINDINGS).flat());
@@ -33,6 +35,17 @@ const Input = {
     window.addEventListener("keyup", (e) => this.down.delete(e.code));
     // If the window loses focus we never get keyup events, so release everything.
     window.addEventListener("blur", () => this.down.clear());
+  },
+
+  // Used by the on-screen buttons to press and release virtual keys.
+  press(code) {
+    if (this.down.has(code)) return;
+    this.down.add(code);
+    this.justPressed.add(code);
+  },
+
+  release(code) {
+    this.down.delete(code);
   },
 
   held(action) {

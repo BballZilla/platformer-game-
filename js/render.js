@@ -299,6 +299,8 @@ const Render = {
   },
 
   // Dark panel with a title and lines of text, used for every menu screen.
+  // (On touchscreens the bottom of the screen has buttons over it, so the
+  // text is moved up a little.)
   screen(ctx, title, lines, { titleColor = COLORS.coin, dim = 0.55 } = {}) {
     ctx.fillStyle = `rgba(10, 8, 25, ${dim})`;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -307,13 +309,14 @@ const Render = {
 
     ctx.font = "bold 64px 'Trebuchet MS', sans-serif";
     ctx.fillStyle = "rgba(0,0,0,0.4)";
-    ctx.fillText(title, VIEW_W / 2 + 4, 170 + 4);
+    const top = Input.touchMode ? 120 : 170;
+    ctx.fillText(title, VIEW_W / 2 + 4, top + 4);
     ctx.fillStyle = titleColor;
-    ctx.fillText(title, VIEW_W / 2, 170);
+    ctx.fillText(title, VIEW_W / 2, top);
 
     ctx.font = "22px 'Trebuchet MS', sans-serif";
     ctx.fillStyle = "#fff";
-    lines.forEach((line, i) => ctx.fillText(line, VIEW_W / 2, 260 + i * 36));
+    lines.forEach((line, i) => ctx.fillText(line, VIEW_W / 2, top + 90 + i * 36));
   },
 
   roundRect(ctx, x, y, w, h, r) {

@@ -8,12 +8,14 @@ const Sound = {
   ctx: null,
   muted: false,
 
-  // Browsers only allow audio after a user gesture, so this is called on the
-  // first key press (from the title screen).
+  // Browsers only allow audio after a user gesture (a key press or a tap), so
+  // this is called from inside those event handlers (see game.js).
   init() {
-    if (this.ctx) return;
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (AudioCtx) this.ctx = new AudioCtx();
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+    if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
   },
 
   toggleMute() {

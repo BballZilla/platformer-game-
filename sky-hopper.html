@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Sky Hopper</title>
   <style>
 * { box-sizing: border-box; }
@@ -26,14 +26,98 @@ main {
   gap: 12px;
 }
 
-/* Scale the canvas to fit the window while keeping its 960x544 aspect ratio. */
-canvas {
-  display: block;
+/* Scale the game to fit the window while keeping its 960x544 aspect ratio. */
+.stage {
+  position: relative;
   width: min(100%, calc((100vh - 90px) * 960 / 544));
   aspect-ratio: 960 / 544;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
   border-radius: 8px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
   outline: none;
+}
+
+/* ---- Touchscreen mode (body.touch is set by touch.js) ---- */
+
+#touch-controls,
+.rotate-hint { display: none; }
+
+body.touch {
+  /* No scrolling, zooming, text selection or tap highlights while playing. */
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.touch main {
+  height: 100dvh;
+  min-height: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+           env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  gap: 8px;
+}
+
+body.touch .stage { width: min(100%, calc(100dvh * 960 / 544)); }
+body.touch canvas { border-radius: 0; }
+body.touch .controls { display: none; }
+
+body.touch #touch-controls {
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* only the buttons themselves catch touches */
+}
+
+#touch-controls > div {
+  position: absolute;
+  display: flex;
+  align-items: flex-end;
+  gap: 2.5%;
+}
+
+.touch-move { left: 2%; bottom: 3%; width: 25%; }
+.touch-act  { right: 2%; bottom: 3%; width: 22%; justify-content: flex-end; }
+.touch-menu { right: 2%; top: 3%; width: 13%; justify-content: flex-end; }
+
+#touch-controls button {
+  pointer-events: auto;
+  touch-action: none;
+  flex: 0 0 auto;
+  width: 46%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  background: rgba(20, 18, 31, 0.22);
+  color: rgba(255, 255, 255, 0.9);
+  font: bold clamp(14px, 3.2vw, 30px) "Trebuchet MS", sans-serif;
+  padding: 0;
+}
+
+#touch-controls .jump { width: 60%; font-size: clamp(12px, 2.2vw, 22px); }
+#touch-controls .small { width: 36%; font-size: clamp(11px, 2vw, 20px); }
+.touch-menu button.small { width: 46%; }
+
+#touch-controls button.active {
+  background: rgba(255, 211, 77, 0.55);
+  border-color: #ffd34d;
+}
+
+/* A phone held upright makes the game tiny: suggest turning it. */
+@media (orientation: portrait) {
+  body.touch .rotate-hint {
+    display: block;
+    margin: 0;
+    font-size: 16px;
+    color: #ffd34d;
+  }
 }
 
 .controls {
@@ -56,9 +140,28 @@ canvas {
       then open <code>index.html</code> from the extracted folder.<br>
       Or just open <b><code>sky-hopper.html</code></b> &mdash; it's the whole game in one file.
     </div>
-    <canvas id="game" width="960" height="544">
-      Your browser does not support the HTML5 canvas.
-    </canvas>
+    <div class="stage">
+      <canvas id="game" width="960" height="544">
+        Your browser does not support the HTML5 canvas.
+      </canvas>
+
+      <!-- On-screen buttons, only shown on touchscreens (see touch.js). -->
+      <div id="touch-controls">
+        <div class="touch-move">
+          <button data-code="TouchLeft" aria-label="Move left">◀</button>
+          <button data-code="TouchRight" aria-label="Move right">▶</button>
+        </div>
+        <div class="touch-act">
+          <button data-code="TouchDown" class="small" aria-label="Drop through platform">▼</button>
+          <button data-code="TouchJump" class="jump" aria-label="Jump">JUMP</button>
+        </div>
+        <div class="touch-menu">
+          <button data-code="TouchMute" class="small" aria-label="Mute">♪</button>
+          <button data-code="TouchPause" class="small" aria-label="Pause">❚❚</button>
+        </div>
+      </div>
+    </div>
+    <p class="rotate-hint">Turn your phone sideways for a bigger screen ↻</p>
     <p class="controls">
       <b>Move</b> ← → / A D &nbsp;·&nbsp;
       <b>Jump</b> Space / ↑ / W / Z &nbsp;·&nbsp;
@@ -153,19 +256,21 @@ const COLORS = {
 //   Input.pressed(action) true only on the update step the key went down
 // ---------------------------------------------------------------------------
 
+// "Touch..." codes come from the on-screen buttons (see touch.js).
 const KEY_BINDINGS = {
-  left:  ["ArrowLeft", "KeyA"],
-  right: ["ArrowRight", "KeyD"],
-  jump:  ["Space", "ArrowUp", "KeyW", "KeyZ"],
-  down:  ["ArrowDown", "KeyS"],
-  pause: ["KeyP", "Escape"],
-  start: ["Enter", "Space"],
-  mute:  ["KeyM"],
+  left:  ["ArrowLeft", "KeyA", "TouchLeft"],
+  right: ["ArrowRight", "KeyD", "TouchRight"],
+  jump:  ["Space", "ArrowUp", "KeyW", "KeyZ", "TouchJump"],
+  down:  ["ArrowDown", "KeyS", "TouchDown"],
+  pause: ["KeyP", "Escape", "TouchPause"],
+  start: ["Enter", "Space", "TouchJump"],
+  mute:  ["KeyM", "TouchMute"],
 };
 
 const Input = {
   down: new Set(),        // keys currently held
   justPressed: new Set(), // keys pressed since the last update step
+  touchMode: false,       // true once we know the player is using a touchscreen
 
   init() {
     const allKeys = new Set(Object.values(KEY_BINDINGS).flat());
@@ -179,6 +284,17 @@ const Input = {
     window.addEventListener("keyup", (e) => this.down.delete(e.code));
     // If the window loses focus we never get keyup events, so release everything.
     window.addEventListener("blur", () => this.down.clear());
+  },
+
+  // Used by the on-screen buttons to press and release virtual keys.
+  press(code) {
+    if (this.down.has(code)) return;
+    this.down.add(code);
+    this.justPressed.add(code);
+  },
+
+  release(code) {
+    this.down.delete(code);
   },
 
   held(action) {
@@ -197,6 +313,73 @@ const Input = {
 </script>
   <script>
 // ---------------------------------------------------------------------------
+// touch.js — on-screen buttons for phones and tablets.
+//
+// Each button in index.html has a data-code such as "TouchLeft". Touching a
+// button "holds" that virtual key in Input, exactly like a keyboard key, so
+// the rest of the game doesn't know or care whether you used a keyboard.
+//
+// Several fingers can be down at once (run + jump), and a finger can slide
+// from one button to another (left -> right) without lifting.
+// ---------------------------------------------------------------------------
+
+const Touch = {
+  fingers: new Map(), // pointerId -> code of the button under that finger
+
+  init() {
+    const layer = document.getElementById("touch-controls");
+    if (!layer) return;
+
+    // Show the buttons straight away on touchscreen devices, or as soon as
+    // someone touches the screen on a device we didn't detect.
+    if (window.matchMedia("(pointer: coarse)").matches) this.enable();
+    window.addEventListener("touchstart", () => this.enable(), { passive: true });
+
+    layer.addEventListener("pointerdown", (e) => this.track(e));
+    layer.addEventListener("pointermove", (e) => {
+      if (this.fingers.has(e.pointerId)) this.track(e);
+    });
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+      layer.addEventListener(type, (e) => this.lift(e.pointerId));
+    }
+    // Stop long-presses from opening the "copy / save image" menu.
+    layer.addEventListener("contextmenu", (e) => e.preventDefault());
+  },
+
+  enable() {
+    if (Input.touchMode) return;
+    Input.touchMode = true;
+    document.body.classList.add("touch");
+  },
+
+  // Work out which button is under the finger right now.
+  track(e) {
+    e.preventDefault();
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const button = el && el.closest("[data-code]");
+    this.fingers.set(e.pointerId, button ? button.dataset.code : null);
+    this.sync();
+  },
+
+  lift(pointerId) {
+    if (!this.fingers.delete(pointerId)) return;
+    this.sync();
+  },
+
+  // Press every button that has a finger on it and release the rest.
+  sync() {
+    const held = new Set(this.fingers.values());
+    for (const button of document.querySelectorAll("#touch-controls [data-code]")) {
+      const code = button.dataset.code;
+      if (held.has(code)) Input.press(code);
+      else Input.release(code);
+      button.classList.toggle("active", held.has(code));
+    }
+  },
+};
+</script>
+  <script>
+// ---------------------------------------------------------------------------
 // audio.js — tiny synthesized sound effects using the Web Audio API.
 // No sound files needed: each effect is one or two oscillator "beeps" whose
 // pitch slides over time.
@@ -206,12 +389,14 @@ const Sound = {
   ctx: null,
   muted: false,
 
-  // Browsers only allow audio after a user gesture, so this is called on the
-  // first key press (from the title screen).
+  // Browsers only allow audio after a user gesture (a key press or a tap), so
+  // this is called from inside those event handlers (see game.js).
   init() {
-    if (this.ctx) return;
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (AudioCtx) this.ctx = new AudioCtx();
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+    if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
   },
 
   toggleMute() {
@@ -1004,6 +1189,8 @@ const Render = {
   },
 
   // Dark panel with a title and lines of text, used for every menu screen.
+  // (On touchscreens the bottom of the screen has buttons over it, so the
+  // text is moved up a little.)
   screen(ctx, title, lines, { titleColor = COLORS.coin, dim = 0.55 } = {}) {
     ctx.fillStyle = `rgba(10, 8, 25, ${dim})`;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
@@ -1012,13 +1199,14 @@ const Render = {
 
     ctx.font = "bold 64px 'Trebuchet MS', sans-serif";
     ctx.fillStyle = "rgba(0,0,0,0.4)";
-    ctx.fillText(title, VIEW_W / 2 + 4, 170 + 4);
+    const top = Input.touchMode ? 120 : 170;
+    ctx.fillText(title, VIEW_W / 2 + 4, top + 4);
     ctx.fillStyle = titleColor;
-    ctx.fillText(title, VIEW_W / 2, 170);
+    ctx.fillText(title, VIEW_W / 2, top);
 
     ctx.font = "22px 'Trebuchet MS', sans-serif";
     ctx.fillStyle = "#fff";
-    lines.forEach((line, i) => ctx.fillText(line, VIEW_W / 2, 260 + i * 36));
+    lines.forEach((line, i) => ctx.fillText(line, VIEW_W / 2, top + 90 + i * 36));
   },
 
   roundRect(ctx, x, y, w, h, r) {
@@ -1097,7 +1285,6 @@ class Game {
     switch (this.state) {
       case "title":
         if (Input.pressed("start")) {
-          Sound.init();
           Sound.select();
           this.state = "playing";
         }
@@ -1312,26 +1499,31 @@ class Game {
 
   drawScreens(ctx) {
     const best = `Best score: ${this.bestScore}`;
+    const touch = Input.touchMode;
     switch (this.state) {
       case "title":
         Render.screen(ctx, "SKY HOPPER", [
           "Collect coins, stomp enemies, reach the flag!",
-          "← → to move   ·   Space to jump   ·   ↓ to drop through planks",
+          touch
+            ? "◀ ▶ to move   ·   JUMP to jump   ·   ▼ to drop through planks"
+            : "← → to move   ·   Space to jump   ·   ↓ to drop through planks",
           "Hold jump to jump higher. Bounce on springs.",
           "",
-          blink(this.clock) ? "Press ENTER or click to start" : "",
+          blink(this.clock) ? (touch ? "Tap the screen to start" : "Press ENTER or click to start") : "",
           best,
         ], { dim: 0.45 });
         break;
       case "paused":
-        Render.screen(ctx, "PAUSED", ["Press P or Esc to resume", "M to mute / unmute"]);
+        Render.screen(ctx, "PAUSED", touch
+          ? ["Tap ❚❚ to resume", "♪ to mute / unmute"]
+          : ["Press P or Esc to resume", "M to mute / unmute"]);
         break;
       case "gameover":
         Render.screen(ctx, "GAME OVER", [
           `Score: ${this.score}   ·   Coins: ${this.coins}/${this.totalCoins}`,
           this.newBest ? "New best score!" : best,
           "",
-          blink(this.clock) ? "Press ENTER or click to try again" : "",
+          blink(this.clock) ? touch ? "Tap the screen to try again" : "Press ENTER or click to try again" : "",
         ], { titleColor: "#ff6b4a" });
         break;
       case "won": {
@@ -1341,7 +1533,7 @@ class Game {
           `Score ${r.base}  +  time bonus ${r.timeBonus}  +  lives bonus ${r.lifeBonus}`,
           `Final score: ${this.score}` + (this.newBest ? "   — New best!" : ""),
           "",
-          blink(this.clock) ? "Press ENTER or click to play again" : "",
+          blink(this.clock) ? touch ? "Tap the screen to play again" : "Press ENTER or click to play again" : "",
         ], { titleColor: "#4ade80", dim: 0.45 });
         break;
       }
@@ -1379,6 +1571,12 @@ document.getElementById("load-error")?.remove();
 const canvas = document.getElementById("game");
 const game = new Game(canvas);
 Input.init();
+Touch.init();
+
+// Audio may only start inside a real key press or tap, so unlock it here.
+for (const type of ["keydown", "pointerdown"]) {
+  window.addEventListener(type, () => Sound.init());
+}
 
 // Clicking the game counts as pressing Enter (start / restart). It also gives
 // the page keyboard focus, which matters when the game is embedded in a frame.

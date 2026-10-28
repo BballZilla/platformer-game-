@@ -56,7 +56,6 @@ class Game {
     switch (this.state) {
       case "title":
         if (Input.pressed("start")) {
-          Sound.init();
           Sound.select();
           this.state = "playing";
         }
@@ -271,26 +270,31 @@ class Game {
 
   drawScreens(ctx) {
     const best = `Best score: ${this.bestScore}`;
+    const touch = Input.touchMode;
     switch (this.state) {
       case "title":
         Render.screen(ctx, "SKY HOPPER", [
           "Collect coins, stomp enemies, reach the flag!",
-          "← → to move   ·   Space to jump   ·   ↓ to drop through planks",
+          touch
+            ? "◀ ▶ to move   ·   JUMP to jump   ·   ▼ to drop through planks"
+            : "← → to move   ·   Space to jump   ·   ↓ to drop through planks",
           "Hold jump to jump higher. Bounce on springs.",
           "",
-          blink(this.clock) ? "Press ENTER or click to start" : "",
+          blink(this.clock) ? (touch ? "Tap the screen to start" : "Press ENTER or click to start") : "",
           best,
         ], { dim: 0.45 });
         break;
       case "paused":
-        Render.screen(ctx, "PAUSED", ["Press P or Esc to resume", "M to mute / unmute"]);
+        Render.screen(ctx, "PAUSED", touch
+          ? ["Tap ❚❚ to resume", "♪ to mute / unmute"]
+          : ["Press P or Esc to resume", "M to mute / unmute"]);
         break;
       case "gameover":
         Render.screen(ctx, "GAME OVER", [
           `Score: ${this.score}   ·   Coins: ${this.coins}/${this.totalCoins}`,
           this.newBest ? "New best score!" : best,
           "",
-          blink(this.clock) ? "Press ENTER or click to try again" : "",
+          blink(this.clock) ? touch ? "Tap the screen to try again" : "Press ENTER or click to try again" : "",
         ], { titleColor: "#ff6b4a" });
         break;
       case "won": {
@@ -300,7 +304,7 @@ class Game {
           `Score ${r.base}  +  time bonus ${r.timeBonus}  +  lives bonus ${r.lifeBonus}`,
           `Final score: ${this.score}` + (this.newBest ? "   — New best!" : ""),
           "",
-          blink(this.clock) ? "Press ENTER or click to play again" : "",
+          blink(this.clock) ? touch ? "Tap the screen to play again" : "Press ENTER or click to play again" : "",
         ], { titleColor: "#4ade80", dim: 0.45 });
         break;
       }
@@ -338,6 +342,12 @@ document.getElementById("load-error")?.remove();
 const canvas = document.getElementById("game");
 const game = new Game(canvas);
 Input.init();
+Touch.init();
+
+// Audio may only start inside a real key press or tap, so unlock it here.
+for (const type of ["keydown", "pointerdown"]) {
+  window.addEventListener(type, () => Sound.init());
+}
 
 // Clicking the game counts as pressing Enter (start / restart). It also gives
 // the page keyboard focus, which matters when the game is embedded in a frame.

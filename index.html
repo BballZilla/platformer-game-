@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Sky Hopper</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -16,9 +16,28 @@
       then open <code>index.html</code> from the extracted folder.<br>
       Or just open <b><code>sky-hopper.html</code></b> &mdash; it's the whole game in one file.
     </div>
-    <canvas id="game" width="960" height="544">
-      Your browser does not support the HTML5 canvas.
-    </canvas>
+    <div class="stage">
+      <canvas id="game" width="960" height="544">
+        Your browser does not support the HTML5 canvas.
+      </canvas>
+
+      <!-- On-screen buttons, only shown on touchscreens (see touch.js). -->
+      <div id="touch-controls">
+        <div class="touch-move">
+          <button data-code="TouchLeft" aria-label="Move left">◀</button>
+          <button data-code="TouchRight" aria-label="Move right">▶</button>
+        </div>
+        <div class="touch-act">
+          <button data-code="TouchDown" class="small" aria-label="Drop through platform">▼</button>
+          <button data-code="TouchJump" class="jump" aria-label="Jump">JUMP</button>
+        </div>
+        <div class="touch-menu">
+          <button data-code="TouchMute" class="small" aria-label="Mute">♪</button>
+          <button data-code="TouchPause" class="small" aria-label="Pause">❚❚</button>
+        </div>
+      </div>
+    </div>
+    <p class="rotate-hint">Turn your phone sideways for a bigger screen ↻</p>
     <p class="controls">
       <b>Move</b> ← → / A D &nbsp;·&nbsp;
       <b>Jump</b> Space / ↑ / W / Z &nbsp;·&nbsp;
@@ -32,6 +51,7 @@
        Order matters: each file only uses things defined in the files above it. -->
   <script src="js/config.js"></script>
   <script src="js/input.js"></script>
+  <script src="js/touch.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/level.js"></script>
   <script src="js/particles.js"></script>
