@@ -36,8 +36,19 @@ class Player {
     this.dropThrough = false;
     this.scaleX = 1;        // squash & stretch (visual only)
     this.scaleY = 1;
-    this.runTime = 0;       // drives the running animation
     this.prevBottom = y + this.h;
+    this.slither = 0;       // grows as the snake moves; drives the wiggle
+
+    // The snake's body is a chain of points (like a rope). Each point is
+    // pulled along by the one in front and falls with gravity, so the body
+    // trails behind on the ground and dangles while jumping. Start stretched
+    // out behind the head.
+    this.body = [];
+    for (let i = 0; i < PLAYER.bodySegments; i++) {
+      const bx = x + this.w / 2 - i * PLAYER.bodySpacing;
+      const by = y + this.h;
+      this.body.push({ x: bx, y: by, px: bx, py: by });
+    }
   }
 
   update(dt, level, particles) {
@@ -69,7 +80,7 @@ class Player {
       this.scaleX = 0.7;
       this.scaleY = 1.3;
       Sound.jump();
-      particles.burst(this.x + this.w / 2, this.y + this.h, 6, { color: "#e8e2d0", speed: 80, angle: -Math.PI / 2, spread: Math.PI, gravity: 200, life: 0.3 });
+      particles.burst(this.x + this.w / 2, this.y + this.h, 6, { color: COLORS.dust, speed: 80, angle: -Math.PI / 2, spread: Math.PI, gravity: 200, life: 0.3 });
     }
 
     // Variable jump height: letting go of jump early cuts the jump short.
@@ -98,14 +109,59 @@ class Player {
       this.scaleX = 1 + 0.35 * impact;
       this.scaleY = 1 - 0.3 * impact;
       if (impact > 0.4) {
-        particles.burst(this.x + this.w / 2, this.y + this.h, 8, { color: "#e8e2d0", speed: 100, angle: -Math.PI / 2, spread: Math.PI, gravity: 300, life: 0.35 });
+        particles.burst(this.x + this.w / 2, this.y + this.h, 8, { color: COLORS.dust, speed: 100, angle: -Math.PI / 2, spread: Math.PI, gravity: 300, life: 0.35 });
       }
     }
 
     // Ease squash & stretch back to normal.
     this.scaleX += (1 - this.scaleX) * Math.min(1, 12 * dt);
     this.scaleY += (1 - this.scaleY) * Math.min(1, 12 * dt);
-    this.runTime = this.onGround && Math.abs(this.vx) > 20 ? this.runTime + dt : 0;
+    this.slither += Math.abs(this.vx) * dt;
+
+    this.updateBody(dt, level);
+  }
+
+  // Rope-style body using "Verlet integration": each point remembers where it
+  // was last step, and the difference is its velocity. Purely cosmetic.
+  updateBody(dt, level) {
+    const b = this.body;
+    // The first point is glued to the back of the head.
+    b[0].x = this.x + this.w / 2 - this.facing * 4;
+    b[0].y = this.y + this.h;
+
+    for (let i = 1; i < b.length; i++) {
+      const p = b[i];
+      const vx = (p.x - p.px) * 0.9; // 0.9 = air friction so it doesn't swing forever
+      const vy = (p.y - p.py) * 0.9;
+      p.px = p.x;
+      p.py = p.y;
+      p.x += vx;
+      p.y += vy + PLAYER.gravity * dt * dt;
+
+      // Stay within bodySpacing of the point in front (follow the leader).
+      const front = b[i - 1];
+      const dx = p.x - front.x;
+      const dy = p.y - front.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > PLAYER.bodySpacing) {
+        p.x = front.x + (dx / dist) * PLAYER.bodySpacing;
+        p.y = front.y + (dy / dist) * PLAYER.bodySpacing;
+      }
+
+      // Rest on top of the ground and platforms instead of sinking into them.
+      const col = Math.floor(p.x / TILE);
+      const row = Math.floor(p.y / TILE);
+      const tileTop = row * TILE;
+      const cameFromAbove = p.py <= tileTop + 1;
+      if (level.isSolid(col, row) || (level.isOneWay(col, row) && cameFromAbove)) {
+        if (cameFromAbove) {
+          p.y = tileTop;
+        } else {
+          p.x = p.px; // hit the side of a wall: undo this step's move
+          p.y = p.py;
+        }
+      }
+    }
   }
 
   // Called when the player jumps on an enemy.

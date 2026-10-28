@@ -27,6 +27,8 @@ const PLAYER = {
   stompBounceHeld: 650,     // ...bigger if jump is held
   springSpeed: 1150,
   dropThroughTime: 0.25,    // how long one-way platforms are ignored after pressing down
+  bodySegments: 13,         // snake body (visual only, no collision)
+  bodySpacing: 5,
 };
 
 const ENEMY = {
@@ -47,25 +49,37 @@ const GAME = {
 };
 
 const COLORS = {
-  skyTop: "#4aa3df",
-  skyBottom: "#bfe6ff",
-  hillFar: "#8fc9a8",
-  hillNear: "#5fae7a",
-  dirt: "#8a5a35",
-  dirtDark: "#6e4426",
-  grass: "#58c24b",
-  grassDark: "#3c9a33",
-  brick: "#c2603d",
-  brickDark: "#8f3f25",
-  plank: "#b98a4e",
-  plankDark: "#7d5a2e",
-  spike: "#d9dde3",
-  spikeDark: "#8c96a3",
-  player: "#ff6b4a",
-  playerDark: "#c4432a",
-  enemy: "#7b4fc9",
-  enemyDark: "#52308f",
-  coin: "#ffd34d",
-  coinDark: "#d49b12",
+  // Night sky, from the top of the screen down to the orange glow on the horizon
+  skyTop: "#120a24",
+  skyMid: "#2e1747",
+  skyBottom: "#7a3b55",
+  moon: "#fdf3c4",
+  hillFar: "#2a1b3d",
+  hillNear: "#1c1229",
+  fog: "rgba(200, 180, 230, 0.10)",
+  dirt: "#3b2633",
+  dirtDark: "#2a1a24",
+  grass: "#5d7d35",
+  grassDark: "#3e5624",
+  stone: "#5e5670",
+  stoneDark: "#3d374b",
+  moss: "#4f6b32",
+  plank: "#6e4b33",
+  plankDark: "#3f2a1d",
+  spike: "#e6e1d3",
+  spikeDark: "#8f8a7c",
+  snake: "#6fd34f",
+  snakeBand: "#3f9a34",
+  snakeDark: "#1f4d1b",
+  snakeEye: "#ffd84a",
+  pumpkin: "#f07a1a",
+  pumpkinDark: "#b4500c",
+  pumpkinGlow: "#ffe066",
+  candyBase: "#ffd23f",
+  candyMid: "#ff8a1f",
+  candyTip: "#fff8ea",
+  lantern: "#ffb84d",
   hud: "#ffffff",
+  accent: "#ff8a1f",       // titles and highlights
+  dust: "#a99bc0",
 };

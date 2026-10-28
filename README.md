@@ -1,4 +1,4 @@
-# Sky Hopper — a one-level 2D platformer
+# Spooky Slither — a one-level Halloween platformer
 
 A complete single-level 2D platformer written in plain JavaScript with the HTML5
 Canvas. No engine, libraries, build step, or image/sound files are needed.
@@ -31,9 +31,10 @@ to the `main` branch and save. GitHub then gives you a link such as
 **JUMP** to jump, ▼ to drop through platforms, ❚❚ to pause and ♪ to mute.
 Turn the phone sideways for the biggest screen.
 
-Collect coins, stomp enemies by landing on top of them, avoid spikes and pits,
-and reach the checkered flag. You have 3 lives; touching a checkpoint flag makes
-it your respawn point. Finishing faster and with lives left gives bonus points.
+You're a snake slithering through haunted hills at night. Grab candy corn, squash
+pumpkins by landing on top of them, avoid spikes and pits, and reach the
+checkered flag. You have 3 lives; lighting a lantern checkpoint makes it your
+respawn point. Finishing faster and with lives left gives bonus points.
 Your best score is saved in the browser.
 
 ## Features
@@ -43,8 +44,12 @@ Your best score is saved in the browser.
 - "Game feel" techniques: coyote time, jump buffering, variable jump height,
   squash & stretch, camera look-ahead, screen shake, particles
 - Solid tiles, one-way platforms (drop through with ↓), spikes, bottomless pits
-- Patrolling enemies that turn at walls, ledges and spikes; stomp to defeat
-- Springs, coins, checkpoints, goal flag
+- Patrolling pumpkin enemies that turn at walls, ledges and spikes; stomp to defeat
+- Springs, candy corn, lantern checkpoints, goal flag
+- A snake hero whose body is a little rope simulation (Verlet integration):
+  it trails on the ground, dangles while jumping and wiggles as it slithers
+- Halloween night scene: moon, twinkling stars, bats, dead trees, a haunted
+  house, drifting fog, tombstones, flickering jack-o'-lantern faces
 - Title, pause, game-over and level-clear screens; score, time and lives HUD
 - Synthesized sound effects (Web Audio API) and procedural graphics
 

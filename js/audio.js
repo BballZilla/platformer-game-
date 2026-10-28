@@ -38,12 +38,13 @@ const Sound = {
     osc.stop(t + duration);
   },
 
-  jump()       { this.tone(320, 0.15, { slideTo: 640, volume: 0.08 }); },
+  jump()       { this.tone(260, 0.15, { slideTo: 520, type: "triangle", volume: 0.12 }); },
   coin()       { this.tone(988, 0.08, { volume: 0.07 }); this.tone(1319, 0.2, { volume: 0.07, delay: 0.07 }); },
   stomp()      { this.tone(220, 0.15, { slideTo: 80, type: "triangle", volume: 0.25 }); },
   spring()     { this.tone(200, 0.35, { slideTo: 900, type: "triangle", volume: 0.2 }); },
   checkpoint() { [523, 659, 784].forEach((f, i) => this.tone(f, 0.15, { delay: i * 0.08, volume: 0.08 })); },
   die()        { this.tone(440, 0.6, { slideTo: 60, type: "sawtooth", volume: 0.12 }); },
-  win()        { [523, 659, 784, 1047, 784, 1047].forEach((f, i) => this.tone(f, 0.2, { delay: i * 0.12, volume: 0.08 })); },
+  // A spooky minor-key tune
+  win()        { [440, 523, 659, 622, 523, 440, 659, 880].forEach((f, i) => this.tone(f, 0.22, { delay: i * 0.13, volume: 0.08, type: "triangle" })); },
   select()     { this.tone(660, 0.1, { volume: 0.08 }); },
 };

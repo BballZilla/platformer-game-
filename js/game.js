@@ -40,6 +40,7 @@ class Game {
     this.time = 0;
     this.deathTimer = 0;
     this.shake = 0;
+    this.fade = 0;          // 0..1 black overlay used when dying / respawning
     this.result = null;
 
     this.camX = 0;
@@ -96,6 +97,12 @@ class Game {
     }
 
     this.shake = Math.max(0, this.shake - dt);
+    // Fade to black at the end of a death, then fade back in after respawning.
+    if (this.state === "dying" && this.deathTimer < 0.4 && this.lives > 1) {
+      this.fade = 1 - this.deathTimer / 0.4;
+    } else {
+      this.fade = Math.max(0, this.fade - 3 * dt);
+    }
     this.updateCamera(dt);
   }
 
@@ -114,7 +121,7 @@ class Game {
         this.coins++;
         this.score += GAME.coinScore;
         Sound.coin();
-        this.particles.burst(coin.x + 8, coin.y + 8, 10, { color: [COLORS.coin, "#fff"], speed: 140, gravity: 200, life: 0.4, size: 3 });
+        this.particles.burst(coin.x + 8, coin.y + 8, 10, { color: [COLORS.candyBase, COLORS.candyMid, "#fff"], speed: 140, gravity: 200, life: 0.4, size: 3 });
       }
     }
 
@@ -128,7 +135,7 @@ class Game {
         p.bounce();
         this.score += GAME.stompScore;
         Sound.stomp();
-        this.particles.burst(e.x + e.w / 2, e.y + e.h, 12, { color: [COLORS.enemy, "#fff"], speed: 160, life: 0.4 });
+        this.particles.burst(e.x + e.w / 2, e.y + e.h, 12, { color: [COLORS.pumpkin, COLORS.pumpkinDark, COLORS.pumpkinGlow], speed: 180, life: 0.5, size: 5 });
       } else {
         this.killPlayer();
         return;
@@ -149,7 +156,7 @@ class Game {
         cp.active = true;
         this.respawnPoint = cp.respawnPoint;
         Sound.checkpoint();
-        this.particles.burst(cp.x + TILE / 2, cp.y + 10, 16, { color: ["#4ade80", "#fff"], speed: 150, life: 0.6 });
+        this.particles.burst(cp.x + TILE / 2, cp.y + 10, 16, { color: [COLORS.lantern, "#fff3c4"], speed: 150, life: 0.6 });
       }
     }
 
@@ -168,7 +175,7 @@ class Game {
     this.deathTimer = GAME.respawnDelay;
     this.shake = 0.3;
     Sound.die();
-    this.particles.burst(p.x + p.w / 2, Math.min(p.y + p.h / 2, this.level.height), 24, { color: [COLORS.player, COLORS.playerDark, "#fff"], speed: 260, life: 0.8, size: 5 });
+    this.particles.burst(p.x + p.w / 2, Math.min(p.y + p.h / 2, this.level.height), 24, { color: [COLORS.snake, COLORS.snakeBand, COLORS.snakeDark], speed: 260, life: 0.8, size: 5 });
   }
 
   afterDeath() {
@@ -189,7 +196,7 @@ class Game {
     this.score += timeBonus + lifeBonus;
     Sound.win();
     for (let i = 0; i < 4; i++) {
-      this.particles.burst(this.flag.x, this.flag.y + i * 30, 20, { color: [COLORS.coin, "#ff6b4a", "#4ade80", "#60a5fa", "#fff"], speed: 320, life: 1.4, gravity: 300, size: 5 });
+      this.particles.burst(this.flag.x, this.flag.y + i * 30, 20, { color: [COLORS.accent, COLORS.candyBase, "#a855f7", COLORS.snake, "#fff"], speed: 320, life: 1.4, gravity: 300, size: 5 });
     }
     this.endGame("won");
   }
@@ -256,7 +263,7 @@ class Game {
     Render.flag(ctx, this.flag, camX, camY, t);
     for (const s of this.springs) Render.spring(ctx, s, camX, camY);
     for (const c of this.coinList) if (!c.collected) Render.coin(ctx, c, camX, camY, t);
-    for (const e of this.enemies) Render.walker(ctx, e, camX, camY);
+    for (const e of this.enemies) Render.walker(ctx, e, camX, camY, t);
     Render.player(ctx, this.player, camX, camY, t);
 
     ctx.save();
@@ -264,6 +271,10 @@ class Game {
     this.particles.draw(ctx);
     ctx.restore();
 
+    if (this.fade > 0) {
+      ctx.fillStyle = `rgba(0, 0, 0, ${this.fade})`;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
     if (this.state !== "title") Render.hud(ctx, this);
     this.drawScreens(ctx);
   }
@@ -273,39 +284,38 @@ class Game {
     const touch = Input.touchMode;
     switch (this.state) {
       case "title":
-        Render.screen(ctx, "SKY HOPPER", [
-          "Collect coins, stomp enemies, reach the flag!",
+        Render.screen(ctx, "SPOOKY SLITHER", [
+          "Slither through the haunted hills! Grab candy corn,",
+          "squash pumpkins and reach the flag.",
           touch
             ? "◀ ▶ to move   ·   JUMP to jump   ·   ▼ to drop through planks"
             : "← → to move   ·   Space to jump   ·   ↓ to drop through planks",
-          "Hold jump to jump higher. Bounce on springs.",
-          "",
           blink(this.clock) ? (touch ? "Tap the screen to start" : "Press ENTER or click to start") : "",
           best,
-        ], { dim: 0.45 });
+        ], { dim: 0.45, time: this.clock });
         break;
       case "paused":
         Render.screen(ctx, "PAUSED", touch
           ? ["Tap ❚❚ to resume", "♪ to mute / unmute"]
-          : ["Press P or Esc to resume", "M to mute / unmute"]);
+          : ["Press P or Esc to resume", "M to mute / unmute"], { time: this.clock });
         break;
       case "gameover":
         Render.screen(ctx, "GAME OVER", [
-          `Score: ${this.score}   ·   Coins: ${this.coins}/${this.totalCoins}`,
+          `Score: ${this.score}   ·   Candy: ${this.coins}/${this.totalCoins}`,
           this.newBest ? "New best score!" : best,
           "",
           blink(this.clock) ? touch ? "Tap the screen to try again" : "Press ENTER or click to try again" : "",
-        ], { titleColor: "#ff6b4a" });
+        ], { titleColor: "#c084fc", time: this.clock });
         break;
       case "won": {
         const r = this.result;
         Render.screen(ctx, "LEVEL CLEAR!", [
-          `Coins: ${this.coins}/${this.totalCoins}   ·   Time: ${formatTime(this.time)}`,
+          `Candy: ${this.coins}/${this.totalCoins}   ·   Time: ${formatTime(this.time)}`,
           `Score ${r.base}  +  time bonus ${r.timeBonus}  +  lives bonus ${r.lifeBonus}`,
           `Final score: ${this.score}` + (this.newBest ? "   — New best!" : ""),
           "",
           blink(this.clock) ? touch ? "Tap the screen to play again" : "Press ENTER or click to play again" : "",
-        ], { titleColor: "#4ade80", dim: 0.45 });
+        ], { titleColor: COLORS.candyBase, dim: 0.45, time: this.clock });
         break;
       }
     }
