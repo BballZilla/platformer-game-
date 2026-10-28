@@ -38,6 +38,8 @@ class Player {
     this.scaleY = 1;
     this.prevBottom = y + this.h;
     this.slither = 0;       // grows as the snake moves; drives the wiggle
+    this.boostTimer = 0;    // after a ghost bash, speed may exceed maxSpeed
+    this.glow = 0;          // 0..1 healing glow (visual only)
 
     // The snake's body is a chain of points (like a rope). Each point is
     // pulled along by the one in front and falls with gravity, so the body
@@ -53,6 +55,7 @@ class Player {
 
   update(dt, level, particles) {
     this.prevBottom = this.y + this.h;
+    this.justJumped = false;
 
     // --- Horizontal movement: accelerate toward input, otherwise slow down.
     const dir = (Input.held("right") ? 1 : 0) - (Input.held("left") ? 1 : 0);
@@ -66,7 +69,11 @@ class Player {
       const decel = (this.onGround ? PLAYER.friction : PLAYER.airDrag) * dt;
       this.vx = Math.abs(this.vx) <= decel ? 0 : this.vx - Math.sign(this.vx) * decel;
     }
-    this.vx = Math.max(-PLAYER.maxSpeed, Math.min(PLAYER.maxSpeed, this.vx));
+    // Normally speed is capped; right after a bash the launch speed is kept
+    // briefly and then eases back down, which is what gives the bash momentum.
+    this.boostTimer -= dt;
+    const limit = this.boostTimer > 0 ? BASH.speedSide : PLAYER.maxSpeed;
+    if (Math.abs(this.vx) > limit) this.vx = Math.sign(this.vx) * Math.max(limit, Math.abs(this.vx) - 1500 * dt);
 
     // --- Jump timers (coyote time + jump buffering make jumping feel fair).
     this.coyoteTimer = this.onGround ? PLAYER.coyoteTime : this.coyoteTimer - dt;
@@ -77,6 +84,7 @@ class Player {
       this.jumpBufferTimer = 0;
       this.coyoteTimer = 0;
       this.jumpCutDone = false;
+      this.justJumped = true;
       this.scaleX = 0.7;
       this.scaleY = 1.3;
       Sound.jump();
@@ -180,6 +188,19 @@ class Player {
     this.scaleY = 1.25;
   }
 
+  // Launch off a bashed ghost: always upward, and sideways toward the input.
+  bash(dir) {
+    this.vy = -BASH.speedUp;
+    this.vx = dir * BASH.speedSide;
+    if (dir !== 0) this.facing = dir;
+    this.boostTimer = BASH.boostTime;
+    this.jumpCutDone = true;   // a bash is always full height
+    this.jumpBufferTimer = 0;
+    this.coyoteTimer = 0;
+    this.scaleX = 0.6;
+    this.scaleY = 1.4;
+  }
+
   launch() {
     this.vy = -PLAYER.springSpeed;
     this.jumpCutDone = true; // releasing jump shouldn't cut a spring launch
@@ -265,6 +286,19 @@ class Ghost {
     this.alive = true;
     this.squashTimer = 0;
     this.animTime = spawn.col; // so ghosts aren't all in sync
+    this.stunTimer = 0;        // > 0 after being bashed: harmless and dizzy
+    this.knockX = 0;           // extra offset from being bashed away
+    this.knockV = 0;
+  }
+
+  get harmless() {
+    return !this.alive || this.stunTimer > 0;
+  }
+
+  // Pushed away (opposite to the player's launch) and stunned.
+  bashed(dir) {
+    this.stunTimer = BASH.stunTime;
+    this.knockV = -dir * 260 || 0;
   }
 
   get removable() {
@@ -277,9 +311,13 @@ class Ghost {
       this.y -= 40 * dt; // the defeated ghost drifts upward as it fades
       return;
     }
-    this.animTime += dt;
+    this.stunTimer = Math.max(0, this.stunTimer - dt);
+    if (this.stunTimer === 0) this.animTime += dt;  // frozen in place while dizzy
+    this.knockX += this.knockV * dt;
+    this.knockV *= Math.pow(0.02, dt);              // knock-back slows quickly...
+    this.knockX *= Math.pow(0.4, dt);               // ...and the ghost drifts home
     const swing = Math.sin(this.animTime * GHOST.speed);
-    this.x = this.homeX + swing * GHOST.range;
+    this.x = this.homeX + swing * GHOST.range + this.knockX;
     this.y = this.homeY + Math.sin(this.animTime * 3) * 6;
     this.dir = Math.cos(this.animTime * GHOST.speed) >= 0 ? 1 : -1;
   }
@@ -287,6 +325,30 @@ class Ghost {
   squash() {
     this.alive = false;
     this.squashTimer = ENEMY.squashTime;
+  }
+}
+
+// ===========================================================================
+// Spirit flame — the spell bought with soul. Flies straight ahead, burns up
+// the first enemy it touches, and fizzles against walls.
+// ===========================================================================
+class SpiritFlame {
+  constructor(x, y, dir) {
+    this.w = 16;
+    this.h = 12;
+    this.x = x - this.w / 2;
+    this.y = y - this.h / 2;
+    this.vx = dir * FLAME.speed;
+    this.life = FLAME.life;
+    this.dead = false;
+  }
+
+  update(dt, level) {
+    this.x += this.vx * dt;
+    this.life -= dt;
+    const col = Math.floor((this.x + this.w / 2) / TILE);
+    const row = Math.floor((this.y + this.h / 2) / TILE);
+    if (this.life <= 0 || level.isSolid(col, row)) this.dead = true;
   }
 }
 

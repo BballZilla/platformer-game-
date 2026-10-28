@@ -84,8 +84,8 @@ body.touch #touch-controls {
 }
 
 .touch-move { left: 2%; bottom: 3%; width: 25%; }
-.touch-act  { right: 2%; bottom: 3%; width: 22%; justify-content: flex-end; }
-.touch-menu { right: 2%; top: 3%; width: 13%; justify-content: flex-end; }
+.touch-act  { right: 2%; bottom: 3%; width: 30%; justify-content: flex-end; }
+.touch-menu { right: 2%; top: 3%; width: 19%; justify-content: flex-end; }
 
 #touch-controls button {
   pointer-events: auto;
@@ -101,9 +101,9 @@ body.touch #touch-controls {
   padding: 0;
 }
 
-#touch-controls .jump { width: 60%; font-size: clamp(12px, 2.2vw, 22px); }
-#touch-controls .small { width: 36%; font-size: clamp(11px, 2vw, 20px); }
-.touch-menu button.small { width: 46%; }
+#touch-controls .jump { width: 44%; font-size: clamp(12px, 2.2vw, 22px); }
+#touch-controls .small { width: 26%; font-size: clamp(11px, 2vw, 20px); }
+.touch-menu button.small { width: 30%; }
 
 #touch-controls button.active {
   background: rgba(255, 211, 77, 0.55);
@@ -152,10 +152,12 @@ body.touch #touch-controls {
           <button data-code="TouchRight" aria-label="Move right">▶</button>
         </div>
         <div class="touch-act">
+          <button data-code="TouchSpell" class="small" aria-label="Spirit flame, hold to heal">✦</button>
           <button data-code="TouchDown" class="small" aria-label="Drop through platform">▼</button>
           <button data-code="TouchJump" class="jump" aria-label="Jump">JUMP</button>
         </div>
         <div class="touch-menu">
+          <button data-code="TouchPixel" class="small" aria-label="Pixel art mode">▦</button>
           <button data-code="TouchMute" class="small" aria-label="Mute">♪</button>
           <button data-code="TouchPause" class="small" aria-label="Pause">❚❚</button>
         </div>
@@ -221,6 +223,33 @@ const GHOST = {
   speed: 1.4,               // how fast it swings back and forth
 };
 
+// Soul: a risk-reward resource. Stomping enemies fills it; you spend it on a
+// spirit flame (tap the spell key) or on healing (hold it while full).
+const SOUL = {
+  max: 100,
+  perStomp: 34,             // 3 stomps fill the orb
+  flameCost: 34,
+  healCost: 100,
+  healHoldTime: 0.7,        // seconds to hold the spell key to heal
+  tapTime: 0.25,            // released quicker than this = a tap (cast flame)
+  maxLives: 5,
+};
+
+const FLAME = {
+  speed: 560,
+  life: 1.0,                // seconds before it fizzles out
+};
+
+// Ghost bash: in mid-air, press jump next to a ghost to launch off it.
+const BASH = {
+  range: 70,                // distance (centre to centre) a ghost can be bashed from
+  speedUp: 820,
+  speedSide: 520,
+  boostTime: 0.35,          // the sideways launch can exceed normal max speed this long
+  stunTime: 1.0,            // a bashed ghost is harmless this long
+  hitstop: 0.07,            // tiny freeze frame to make the bash feel punchy
+};
+
 const GAME = {
   startLives: 3,            // lives are refilled at the start of every level
   respawnDelay: 1.2,        // seconds between dying and respawning
@@ -229,7 +258,9 @@ const GAME = {
   timeBonusPar: 180,        // finish faster than this (seconds) for a time bonus
   timeBonusPerSecond: 50,
   lifeBonus: 1000,
-  levelIntroTime: 2.2,      // how long the "LEVEL 2 - ..." banner shows
+  levelIntroTime: 3.0,      // how long the "LEVEL 2 - ..." banner shows
+  trailsKept: 5,            // how many past attempts are drawn as death trails
+  pixelScale: 3,            // pixel-art mode renders at 1/3 resolution
 };
 
 const COLORS = {
@@ -287,6 +318,8 @@ const KEY_BINDINGS = {
   pause: ["KeyP", "Escape", "TouchPause"],
   start: ["Enter", "Space", "TouchJump"],
   mute:  ["KeyM", "TouchMute"],
+  spell: ["KeyX", "KeyF", "ShiftLeft", "ShiftRight", "TouchSpell"],
+  pixel: ["KeyV", "TouchPixel"],
 };
 
 const Input = {
@@ -450,6 +483,11 @@ const Sound = {
   // A spooky minor-key tune
   win()        { [440, 523, 659, 622, 523, 440, 659, 880].forEach((f, i) => this.tone(f, 0.22, { delay: i * 0.13, volume: 0.08, type: "triangle" })); },
   select()     { this.tone(660, 0.1, { volume: 0.08 }); },
+  flame()      { this.tone(700, 0.25, { slideTo: 200, type: "sawtooth", volume: 0.07 }); },
+  bash()       { this.tone(150, 0.12, { slideTo: 600, type: "square", volume: 0.12 }); this.tone(900, 0.2, { slideTo: 1400, type: "triangle", volume: 0.06, delay: 0.05 }); },
+  heal()       { [392, 523, 659, 784].forEach((f, i) => this.tone(f, 0.25, { delay: i * 0.07, type: "sine", volume: 0.1 })); },
+  soulFull()   { this.tone(1047, 0.3, { type: "sine", volume: 0.07 }); },
+  fizzle()     { this.tone(180, 0.1, { slideTo: 120, type: "triangle", volume: 0.06 }); },
 };
 </script>
   <script>
@@ -472,6 +510,7 @@ const Sound = {
 const LEVELS = [
   {
     name: "Haunted Hills",
+    tip: "Stomp pumpkins to fill your soul orb, then tap {spell} to throw a spirit flame",
     sky: ["#120a24", "#2e1747", "#7a3b55"],   // top, middle, horizon
     moon: "#fdf3c4",
     map: [
@@ -496,6 +535,7 @@ const LEVELS = [
   },
   {
     name: "Graveyard Crypt",
+    tip: "In mid-air, jump next to a ghost to bash off it and fly higher",
     sky: ["#06141a", "#123a3a", "#3f6b4a"],
     moon: "#e6ffd9",
     map: [
@@ -520,6 +560,7 @@ const LEVELS = [
   },
   {
     name: "Witch's Peak",
+    tip: "With a full soul orb, hold {spell} to heal one life",
     sky: ["#14040a", "#3d0c1c", "#8a2b1f"],
     moon: "#ff8a66",
     map: [
@@ -554,8 +595,9 @@ const LEVELS = [
 const SOLID_TILES = new Set(["#", "B"]);
 
 class Level {
-  constructor({ name, sky, moon, map }) {
+  constructor({ name, tip, sky, moon, map }) {
     this.name = name;
+    this.tip = tip;
     this.sky = sky;
     this.moon = moon;
     this.rows = map.length;
@@ -787,6 +829,8 @@ class Player {
     this.scaleY = 1;
     this.prevBottom = y + this.h;
     this.slither = 0;       // grows as the snake moves; drives the wiggle
+    this.boostTimer = 0;    // after a ghost bash, speed may exceed maxSpeed
+    this.glow = 0;          // 0..1 healing glow (visual only)
 
     // The snake's body is a chain of points (like a rope). Each point is
     // pulled along by the one in front and falls with gravity, so the body
@@ -802,6 +846,7 @@ class Player {
 
   update(dt, level, particles) {
     this.prevBottom = this.y + this.h;
+    this.justJumped = false;
 
     // --- Horizontal movement: accelerate toward input, otherwise slow down.
     const dir = (Input.held("right") ? 1 : 0) - (Input.held("left") ? 1 : 0);
@@ -815,7 +860,11 @@ class Player {
       const decel = (this.onGround ? PLAYER.friction : PLAYER.airDrag) * dt;
       this.vx = Math.abs(this.vx) <= decel ? 0 : this.vx - Math.sign(this.vx) * decel;
     }
-    this.vx = Math.max(-PLAYER.maxSpeed, Math.min(PLAYER.maxSpeed, this.vx));
+    // Normally speed is capped; right after a bash the launch speed is kept
+    // briefly and then eases back down, which is what gives the bash momentum.
+    this.boostTimer -= dt;
+    const limit = this.boostTimer > 0 ? BASH.speedSide : PLAYER.maxSpeed;
+    if (Math.abs(this.vx) > limit) this.vx = Math.sign(this.vx) * Math.max(limit, Math.abs(this.vx) - 1500 * dt);
 
     // --- Jump timers (coyote time + jump buffering make jumping feel fair).
     this.coyoteTimer = this.onGround ? PLAYER.coyoteTime : this.coyoteTimer - dt;
@@ -826,6 +875,7 @@ class Player {
       this.jumpBufferTimer = 0;
       this.coyoteTimer = 0;
       this.jumpCutDone = false;
+      this.justJumped = true;
       this.scaleX = 0.7;
       this.scaleY = 1.3;
       Sound.jump();
@@ -929,6 +979,19 @@ class Player {
     this.scaleY = 1.25;
   }
 
+  // Launch off a bashed ghost: always upward, and sideways toward the input.
+  bash(dir) {
+    this.vy = -BASH.speedUp;
+    this.vx = dir * BASH.speedSide;
+    if (dir !== 0) this.facing = dir;
+    this.boostTimer = BASH.boostTime;
+    this.jumpCutDone = true;   // a bash is always full height
+    this.jumpBufferTimer = 0;
+    this.coyoteTimer = 0;
+    this.scaleX = 0.6;
+    this.scaleY = 1.4;
+  }
+
   launch() {
     this.vy = -PLAYER.springSpeed;
     this.jumpCutDone = true; // releasing jump shouldn't cut a spring launch
@@ -1014,6 +1077,19 @@ class Ghost {
     this.alive = true;
     this.squashTimer = 0;
     this.animTime = spawn.col; // so ghosts aren't all in sync
+    this.stunTimer = 0;        // > 0 after being bashed: harmless and dizzy
+    this.knockX = 0;           // extra offset from being bashed away
+    this.knockV = 0;
+  }
+
+  get harmless() {
+    return !this.alive || this.stunTimer > 0;
+  }
+
+  // Pushed away (opposite to the player's launch) and stunned.
+  bashed(dir) {
+    this.stunTimer = BASH.stunTime;
+    this.knockV = -dir * 260 || 0;
   }
 
   get removable() {
@@ -1026,9 +1102,13 @@ class Ghost {
       this.y -= 40 * dt; // the defeated ghost drifts upward as it fades
       return;
     }
-    this.animTime += dt;
+    this.stunTimer = Math.max(0, this.stunTimer - dt);
+    if (this.stunTimer === 0) this.animTime += dt;  // frozen in place while dizzy
+    this.knockX += this.knockV * dt;
+    this.knockV *= Math.pow(0.02, dt);              // knock-back slows quickly...
+    this.knockX *= Math.pow(0.4, dt);               // ...and the ghost drifts home
     const swing = Math.sin(this.animTime * GHOST.speed);
-    this.x = this.homeX + swing * GHOST.range;
+    this.x = this.homeX + swing * GHOST.range + this.knockX;
     this.y = this.homeY + Math.sin(this.animTime * 3) * 6;
     this.dir = Math.cos(this.animTime * GHOST.speed) >= 0 ? 1 : -1;
   }
@@ -1036,6 +1116,30 @@ class Ghost {
   squash() {
     this.alive = false;
     this.squashTimer = ENEMY.squashTime;
+  }
+}
+
+// ===========================================================================
+// Spirit flame — the spell bought with soul. Flies straight ahead, burns up
+// the first enemy it touches, and fizzles against walls.
+// ===========================================================================
+class SpiritFlame {
+  constructor(x, y, dir) {
+    this.w = 16;
+    this.h = 12;
+    this.x = x - this.w / 2;
+    this.y = y - this.h / 2;
+    this.vx = dir * FLAME.speed;
+    this.life = FLAME.life;
+    this.dead = false;
+  }
+
+  update(dt, level) {
+    this.x += this.vx * dt;
+    this.life -= dt;
+    const col = Math.floor((this.x + this.w / 2) / TILE);
+    const row = Math.floor((this.y + this.h / 2) / TILE);
+    if (this.life <= 0 || level.isSolid(col, row)) this.dead = true;
   }
 }
 
@@ -1144,6 +1248,11 @@ const Render = {
       this.bat(ctx, x, y, b.size, time * 14 + b.phase);
     }
 
+    // Parallax layers, back to front. Each scrolls slower the further away it
+    // is: mountains 0.1x the camera, far hills 0.25x, near hills 0.5x, the
+    // level itself 1x, and the foreground (drawn later) 1.35x.
+    this.mountains(ctx, camX * 0.1);
+
     // Far hills with a haunted house, near hills with dead trees
     const farOffset = camX * 0.25;
     const houseX = 1250 - farOffset;
@@ -1194,6 +1303,164 @@ const Render = {
     ctx.beginPath();
     ctx.arc(x, y + 1, 4 * s, 0, Math.PI * 2);
     ctx.fill();
+  },
+
+  // Jagged distant mountain range, faded into the sky
+  mountains(ctx, offset) {
+    ctx.fillStyle = "rgba(25, 12, 40, 0.55)";
+    ctx.beginPath();
+    ctx.moveTo(0, VIEW_H);
+    const step = 70;
+    const first = Math.floor(offset / step);
+    for (let i = first; i <= first + Math.ceil(VIEW_W / step) + 1; i++) {
+      const peak = i % 2 === 0;
+      const y = peak ? 210 + hash(i) * 70 : 300 + hash(i) * 40;
+      ctx.lineTo(i * step - offset, y);
+    }
+    ctx.lineTo(VIEW_W, VIEW_H);
+    ctx.fill();
+  },
+
+  // Foreground silhouettes that pass in front of everything, moving faster
+  // than the camera — the strongest depth cue in a side-scroller.
+  foreground(ctx, camX, camY, level, time) {
+    const offset = camX * 1.35;
+    ctx.fillStyle = "rgba(4, 1, 8, 0.92)";
+    // Grass clumps and fence posts along the bottom edge
+    const spacing = 230;
+    const first = Math.floor(offset / spacing) - 1;
+    for (let i = first; i <= first + 6; i++) {
+      const x = i * spacing + hash(i + 900) * 120 - offset;
+      if (hash(i + 950) < 0.35) {
+        // iron fence post with a spike on top
+        ctx.fillRect(x, VIEW_H - 70, 7, 70);
+        ctx.beginPath();
+        ctx.moveTo(x - 3, VIEW_H - 70); ctx.lineTo(x + 3.5, VIEW_H - 84); ctx.lineTo(x + 10, VIEW_H - 70);
+        ctx.fill();
+        ctx.fillRect(x - 40, VIEW_H - 52, 90, 5);
+      } else {
+        // a clump of tall grass blades swaying in the wind
+        ctx.beginPath();
+        for (let k = 0; k < 7; k++) {
+          const bx = x + k * 7;
+          const h = 22 + hash(i * 7 + k) * 32;
+          const sway = Math.sin(time * 1.6 + i + k * 0.4) * 5;
+          ctx.moveTo(bx - 3, VIEW_H);
+          ctx.quadraticCurveTo(bx + sway * 0.5, VIEW_H - h * 0.6, bx + sway, VIEW_H - h);
+          ctx.quadraticCurveTo(bx + 1 + sway * 0.5, VIEW_H - h * 0.6, bx + 3, VIEW_H);
+        }
+        ctx.fill();
+      }
+    }
+    // Branches hanging down from the top edge
+    const tSpacing = 520;
+    const tFirst = Math.floor(offset / tSpacing) - 1;
+    ctx.strokeStyle = "rgba(4, 1, 8, 0.92)";
+    ctx.lineCap = "round";
+    for (let i = tFirst; i <= tFirst + 3; i++) {
+      if (hash(i + 990) < 0.4) continue;
+      const x = i * tSpacing + hash(i + 970) * 200 - offset;
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.moveTo(x - 80, -5);
+      ctx.quadraticCurveTo(x, 30 + hash(i) * 20, x + 90, -5);
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      for (let k = 0; k < 4; k++) {           // dangling vines
+        const vx = x - 40 + k * 28;
+        const len = 25 + hash(i * 3 + k) * 45;
+        const sway = Math.sin(time * 1.3 + k) * 4;
+        ctx.beginPath();
+        ctx.moveTo(vx, 14);
+        ctx.quadraticCurveTo(vx + sway, 14 + len / 2, vx + sway * 1.5, 14 + len);
+        ctx.stroke();
+      }
+    }
+  },
+
+  // Darken the edges of the screen and leave a pool of light around the
+  // snake. This keeps the player the brightest, clearest thing on screen.
+  lighting(ctx, px, py, dead) {
+    const cx = dead ? VIEW_W / 2 : px;
+    const cy = dead ? VIEW_H / 2 : py;
+    const g = ctx.createRadialGradient(cx, cy, 120, cx, cy, 640);
+    g.addColorStop(0, "rgba(5, 0, 15, 0)");
+    g.addColorStop(1, "rgba(5, 0, 15, 0.6)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  },
+
+  // Past attempts on this level: a dotted route and a skull where you died.
+  // Older attempts are fainter.
+  trails(ctx, attempts, camX, camY) {
+    const n = attempts.length;
+    attempts.forEach((a, i) => {
+      const alpha = 0.15 + 0.35 * ((i + 1) / n);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = "#ff5d73";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 6]);
+      ctx.beginPath();
+      a.path.forEach((pt, k) => {
+        if (k === 0) ctx.moveTo(pt.x - camX, pt.y - camY);
+        else ctx.lineTo(pt.x - camX, pt.y - camY);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      this.skull(ctx, a.death.x - camX, a.death.y - camY);
+      ctx.restore();
+    });
+  },
+
+  skull(ctx, x, y) {
+    ctx.fillStyle = "#f1e9ff";
+    ctx.beginPath();
+    ctx.arc(x, y - 2, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(x - 4, y + 3, 8, 5);
+    ctx.fillStyle = "#1a1020";
+    ctx.fillRect(x - 4, y - 4, 3, 3);
+    ctx.fillRect(x + 1, y - 4, 3, 3);
+    ctx.fillRect(x - 1, y + 4, 2, 4);
+  },
+
+  // Spirit flame: a violet fireball with a flickering tail.
+  flame(ctx, f, camX, camY, time) {
+    const x = f.x + f.w / 2 - camX;
+    const y = f.y + f.h / 2 - camY;
+    const dir = Math.sign(f.vx);
+    const glow = ctx.createRadialGradient(x, y, 2, x, y, 26);
+    glow.addColorStop(0, "rgba(196, 181, 253, 0.8)");
+    glow.addColorStop(1, "rgba(196, 181, 253, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - 26, y - 26, 52, 52);
+    ctx.fillStyle = "#a78bfa";
+    ctx.beginPath();
+    ctx.moveTo(x + dir * 9, y);
+    ctx.quadraticCurveTo(x, y - 9, x - dir * (22 + Math.sin(time * 40) * 4), y + Math.sin(time * 30) * 3);
+    ctx.quadraticCurveTo(x, y + 9, x + dir * 9, y);
+    ctx.fill();
+    ctx.fillStyle = "#f5f3ff";
+    ctx.beginPath();
+    ctx.arc(x + dir * 2, y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+  },
+
+  // Pulsing ring that shows "you can bash this ghost right now".
+  bashRing(ctx, g, camX, camY, time) {
+    const x = g.x + g.w / 2 - camX;
+    const y = g.y + g.h / 2 - camY;
+    ctx.save();
+    ctx.strokeStyle = "#a5f3fc";
+    ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 12);
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 5]);
+    ctx.lineDashOffset = -time * 30;
+    ctx.beginPath();
+    ctx.arc(x, y, 22 + Math.sin(time * 12) * 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   },
 
   hillY(wx, baseY, amp, freq) {
@@ -1355,6 +1622,12 @@ const Render = {
   },
 
   spikes(ctx, x, y) {
+    // A faint red glow behind every spike so hazards read instantly.
+    const glow = ctx.createLinearGradient(0, y + TILE, 0, y);
+    glow.addColorStop(0, "rgba(255, 70, 90, 0.35)");
+    glow.addColorStop(1, "rgba(255, 70, 90, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(x, y - 4, TILE, TILE + 4);
     for (let i = 0; i < 4; i++) {
       const sx = x + i * 8;
       ctx.fillStyle = COLORS.spikeDark;
@@ -1391,6 +1664,14 @@ const Render = {
     // Head rears up above the front of the body, cobra style.
     const hx = p.x + p.w / 2 - camX + p.facing * 2;
     const hy = p.y + p.h - camY - 16;
+    // Soft rim light behind the head so the snake stands out from the dark
+    // background; it brightens while you hold the spell key to heal.
+    const halo = ctx.createRadialGradient(hx, hy, 4, hx, hy, 42 + p.glow * 30);
+    halo.addColorStop(0, `rgba(170, 255, 150, ${0.18 + p.glow * 0.5})`);
+    halo.addColorStop(1, "rgba(170, 255, 150, 0)");
+    ctx.fillStyle = halo;
+    ctx.fillRect(hx - 80, hy - 80, 160, 160);
+
     // Neck: a few circles from the head down to the first body segment.
     if (segs.length) {
       const s0 = segs[0];
@@ -1698,7 +1979,7 @@ const Render = {
   // ---- HUD & screens ----
   hud(ctx, game) {
     ctx.fillStyle = "rgba(10, 5, 20, 0.55)";
-    this.roundRect(ctx, 10, 10, 480, 40, 10);
+    this.roundRect(ctx, 10, 10, 580, 40, 10);
     ctx.fill();
     ctx.font = "bold 20px 'Trebuchet MS', sans-serif";
     ctx.textBaseline = "middle";
@@ -1710,13 +1991,48 @@ const Render = {
     ctx.fillText(`${game.coins}/${game.totalCoins}`, 46, 31);
 
     // Lives as little hearts
-    for (let i = 0; i < game.lives; i++) this.heart(ctx, 135 + i * 24, 30, COLORS.accent);
+    for (let i = 0; i < game.lives; i++) this.heart(ctx, 132 + i * 22, 30, COLORS.accent);
 
     ctx.fillStyle = COLORS.hud;
-    ctx.fillText(`${String(game.score).padStart(6, "0")}`, 220, 31);
-    ctx.fillText(`⏱ ${formatTime(game.time)}`, 320, 31);
+    ctx.fillText(`${String(game.score).padStart(6, "0")}`, 250, 31);
+    ctx.fillText(`⏱ ${formatTime(game.time)}`, 345, 31);
     ctx.fillStyle = COLORS.accent;
-    ctx.fillText(`LV ${game.levelIndex + 1}`, 420, 31);
+    ctx.fillText(`LV ${game.levelIndex + 1}`, 440, 31);
+    this.soulOrb(ctx, 530, 30, game.soul / SOUL.max, game.clock);
+    if (!Input.touchMode) {
+      ctx.font = "bold 14px 'Trebuchet MS', sans-serif";
+      ctx.fillStyle = "#c4b5fd";
+      ctx.fillText("X", 552, 31);
+    }
+  },
+
+  // Soul orb: fills from the bottom; glows and pulses when full.
+  soulOrb(ctx, x, y, fill, time) {
+    const r = 13;
+    if (fill >= 1) {
+      const g = ctx.createRadialGradient(x, y, r, x, y, r + 12);
+      g.addColorStop(0, `rgba(167, 139, 250, ${0.5 + 0.3 * Math.sin(time * 6)})`);
+      g.addColorStop(1, "rgba(167, 139, 250, 0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(x - r - 12, y - r - 12, (r + 12) * 2, (r + 12) * 2);
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#1c1430";
+    ctx.fill();
+    ctx.clip();
+    ctx.fillStyle = "#a78bfa";
+    const h = r * 2 * fill;
+    ctx.fillRect(x - r, y + r - h, r * 2, h);
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.fillRect(x - r, y + r - h, r * 2, Math.min(2, h));
+    ctx.restore();
+    ctx.strokeStyle = "#e9d5ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
   },
 
   heart(ctx, x, y, color) {
@@ -1758,14 +2074,14 @@ const Render = {
   },
 
   // "LEVEL 2 / Graveyard Crypt" banner that slides in and fades out.
-  levelIntro(ctx, number, name, t) {
+  levelIntro(ctx, number, name, tip, t) {
     // t goes from 1 (just started) to 0 (finished)
     const alpha = Math.min(1, t * 4, (1 - t) * 6);
     const slide = (1 - Math.min(1, (1 - t) * 6)) * -40;
     ctx.save();
     ctx.globalAlpha = Math.max(0, alpha);
     ctx.fillStyle = "rgba(8, 3, 16, 0.6)";
-    ctx.fillRect(0, 150 + slide, VIEW_W, 110);
+    ctx.fillRect(0, 150 + slide, VIEW_W, 140);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
@@ -1774,6 +2090,9 @@ const Render = {
     ctx.font = "bold 44px 'Trebuchet MS', sans-serif";
     ctx.fillStyle = "#fff";
     ctx.fillText(name, VIEW_W / 2, 222 + slide);
+    ctx.font = "18px 'Trebuchet MS', sans-serif";
+    ctx.fillStyle = "#c4b5fd";
+    ctx.fillText(tip, VIEW_W / 2, 266 + slide);
     ctx.restore();
   },
 
@@ -1813,6 +2132,13 @@ class Game {
     this.time = 0;          // level timer (only runs while playing)
     this.clock = 0;         // always-running clock for animations
     this.bestScore = loadBestScore();
+    // Pixel-art mode draws the world onto a small canvas, then scales it up
+    // without smoothing so every pixel becomes a crisp block.
+    this.pixelMode = loadSetting("pixelMode") === "1";
+    this.lowCanvas = document.createElement("canvas");
+    this.lowCanvas.width = Math.ceil(VIEW_W / GAME.pixelScale);
+    this.lowCanvas.height = Math.ceil(VIEW_H / GAME.pixelScale);
+    this.lowCtx = this.lowCanvas.getContext("2d");
     this.newGame();
   }
 
@@ -1822,6 +2148,9 @@ class Game {
     this.candyTotal = 0;    // candy collected across all finished levels
     this.candyMax = 0;
     this.totalTime = 0;
+    this.soul = 0;          // 0..SOUL.max, kept between levels
+    this.attempts = [];     // past lives on this level, drawn as death trails
+    this.trailLevel = -1;
     this.loadLevel(0);
   }
 
@@ -1830,6 +2159,16 @@ class Game {
     this.levelIndex = index;
     this.level = new Level(LEVELS[index]);
     this.levelStartScore = this.score; // restored if you get a game over
+    // Death trails are kept while you retry the same level.
+    if (index !== this.trailLevel) {
+      this.attempts = [];
+      this.trailLevel = index;
+    }
+    this.path = [];         // where the player has been this life
+    this.flames = [];
+    this.spellHold = 0;
+    this.spellUsed = false;
+    this.hitstop = 0;
     const s = this.level.spawns;
     const start = spawnOnTile(s.player, PLAYER.width, PLAYER.height);
 
@@ -1864,6 +2203,10 @@ class Game {
   update(dt) {
     this.clock += dt;
     if (Input.pressed("mute")) Sound.toggleMute();
+    if (Input.pressed("pixel")) {
+      this.pixelMode = !this.pixelMode;
+      saveSetting("pixelMode", this.pixelMode ? "1" : "0");
+    }
 
     switch (this.state) {
       case "title":
@@ -1908,12 +2251,21 @@ class Game {
           this.state = "paused";
           break;
         }
+        // Hitstop: freeze everything for a few frames to sell a big hit.
+        if (this.hitstop > 0) {
+          this.hitstop -= dt;
+          break;
+        }
         this.time += dt;
         this.introTimer = Math.max(0, this.introTimer - dt);
         this.player.update(dt, this.level, this.particles);
+        this.tryBash();
+        this.updateSpell(dt);
         this.updateEnemies(dt);
+        this.updateFlames(dt);
         this.handleInteractions();
         this.particles.update(dt);
+        this.recordPath();
         break;
     }
 
@@ -1925,6 +2277,108 @@ class Game {
       this.fade = Math.max(0, this.fade - 3 * dt);
     }
     this.updateCamera(dt);
+  }
+
+  // ---- Ghost bash ----------------------------------------------------------
+  // Pressing jump in mid-air near a ghost launches you off it (upward, and
+  // sideways toward whatever direction you're holding). The ghost is knocked
+  // away and stunned, so you can chain bashes between ghosts.
+  bashTarget() {
+    const p = this.player;
+    if (p.onGround) return null;
+    let best = null;
+    let bestDist = BASH.range;
+    for (const e of this.enemies) {
+      if (!(e instanceof Ghost) || e.harmless) continue;
+      const d = Math.hypot(e.x + e.w / 2 - (p.x + p.w / 2), e.y + e.h / 2 - (p.y + p.h / 2));
+      if (d < bestDist) {
+        best = e;
+        bestDist = d;
+      }
+    }
+    return best;
+  }
+
+  tryBash() {
+    const p = this.player;
+    if (!Input.pressed("jump") || p.justJumped) return;
+    const ghost = this.bashTarget();
+    if (!ghost) return;
+    const dir = (Input.held("right") ? 1 : 0) - (Input.held("left") ? 1 : 0);
+    ghost.bashed(dir);
+    p.bash(dir);
+    this.hitstop = BASH.hitstop;
+    this.shake = 0.12;
+    Sound.bash();
+    this.particles.burst(ghost.x + ghost.w / 2, ghost.y + ghost.h / 2, 18, { color: ["#eef4ff", "#a5f3fc", "#fff"], speed: 260, gravity: 0, life: 0.35, size: 4 });
+  }
+
+  // ---- Soul: spirit flame (tap) or heal (hold) -----------------------------
+  updateSpell(dt) {
+    const p = this.player;
+    if (Input.pressed("spell")) {
+      this.spellHold = 0.0001; // > 0 marks "pressed", even if released this same step
+      this.spellUsed = false;
+    }
+    if (Input.held("spell") && !this.spellUsed) {
+      this.spellHold += dt;
+      const canHeal = this.soul >= SOUL.healCost && this.lives < SOUL.maxLives;
+      p.glow = canHeal ? Math.min(1, this.spellHold / SOUL.healHoldTime) : 0;
+      if (canHeal && this.spellHold >= SOUL.healHoldTime) {
+        this.soul -= SOUL.healCost;
+        this.lives++;
+        this.spellUsed = true;
+        p.glow = 0;
+        Sound.heal();
+        this.particles.burst(p.x + p.w / 2, p.y + p.h / 2, 24, { color: ["#a7f3d0", "#fff", COLORS.snake], speed: 160, gravity: -150, life: 0.8, size: 4 });
+      }
+    } else if (this.spellHold > 0) {
+      // Released: a quick tap casts the flame.
+      if (!this.spellUsed && this.spellHold < SOUL.tapTime) this.castFlame();
+      this.spellHold = 0;
+      p.glow = 0;
+    }
+  }
+
+  castFlame() {
+    const p = this.player;
+    if (this.soul < SOUL.flameCost) {
+      Sound.fizzle();
+      this.particles.burst(p.x + p.w / 2 + p.facing * 14, p.y + 10, 5, { color: "#6b6480", speed: 40, gravity: -60, life: 0.4, size: 3 });
+      return;
+    }
+    this.soul -= SOUL.flameCost;
+    this.flames.push(new SpiritFlame(p.x + p.w / 2 + p.facing * 14, p.y + 12, p.facing));
+    Sound.flame();
+  }
+
+  updateFlames(dt) {
+    for (const f of this.flames) {
+      f.update(dt, this.level);
+      // Leave a trail of embers behind the flame
+      this.particles.burst(f.x + f.w / 2, f.y + f.h / 2, 1, { color: ["#c4b5fd", "#a5f3fc"], speed: 30, gravity: -40, life: 0.3, size: 3 });
+      for (const e of this.enemies) {
+        if (f.dead || !e.alive || !overlaps(f, e)) continue;
+        e.squash();
+        f.dead = true;
+        this.score += GAME.stompScore; // spell kills give score but no soul
+        Sound.stomp();
+        this.particles.burst(e.x + e.w / 2, e.y + e.h / 2, 14, { color: ["#c4b5fd", COLORS.pumpkin, "#fff"], speed: 200, life: 0.5, size: 4 });
+      }
+      if (f.dead) this.particles.burst(f.x + f.w / 2, f.y + f.h / 2, 8, { color: ["#c4b5fd", "#fff"], speed: 120, gravity: 0, life: 0.3 });
+    }
+    this.flames = this.flames.filter((f) => !f.dead);
+  }
+
+  // ---- Death trails ----------------------------------------------------------
+  // Remember where the player went this life (a point every 3 steps), so a
+  // death can leave a trail showing the route that failed.
+  recordPath() {
+    const p = this.player;
+    this.pathStep = (this.pathStep || 0) + 1;
+    if (this.pathStep % 3 === 0 && this.path.length < 3000) {
+      this.path.push({ x: p.x + p.w / 2, y: p.y + p.h / 2 });
+    }
   }
 
   updateEnemies(dt) {
@@ -1947,7 +2401,7 @@ class Game {
     }
 
     for (const e of this.enemies) {
-      if (!e.alive || !overlaps(p, e)) continue;
+      if (!e.alive || e.harmless || !overlaps(p, e)) continue;
       // It's a stomp if we're falling and our feet were above the enemy's
       // top last step. Otherwise, the enemy got us.
       const stomp = p.vy > 0 && p.prevBottom <= e.y + 8;
@@ -1955,6 +2409,9 @@ class Game {
         e.squash();
         p.bounce();
         this.score += GAME.stompScore;
+        const wasFull = this.soul >= SOUL.max;
+        this.soul = Math.min(SOUL.max, this.soul + SOUL.perStomp);
+        if (!wasFull && this.soul >= SOUL.max) Sound.soulFull();
         Sound.stomp();
         this.particles.burst(e.x + e.w / 2, e.y + e.h, 12, { color: [COLORS.pumpkin, COLORS.pumpkinDark, COLORS.pumpkinGlow], speed: 180, life: 0.5, size: 5 });
       } else {
@@ -1993,6 +2450,10 @@ class Game {
     const p = this.player;
     p.dead = true;
     this.state = "dying";
+    this.attempts.push({ path: this.path, death: { x: p.x + p.w / 2, y: Math.min(p.y + p.h / 2, this.level.height - 8) } });
+    if (this.attempts.length > GAME.trailsKept) this.attempts.shift();
+    this.path = [];
+    this.flames = [];
     this.deathTimer = GAME.respawnDelay;
     this.shake = 0.3;
     Sound.die();
@@ -2081,7 +2542,9 @@ class Game {
   // ---- Draw -----------------------------------------------------------------
 
   draw() {
-    const ctx = this.ctx;
+    // In pixel mode the world is drawn small onto lowCanvas and scaled up.
+    const ctx = this.pixelMode ? this.lowCtx : this.ctx;
+    ctx.setTransform(this.pixelMode ? 1 / GAME.pixelScale : 1, 0, 0, this.pixelMode ? 1 / GAME.pixelScale : 1, 0, 0);
     let camX = this.camX;
     let camY = this.camY;
     if (this.shake > 0) {
@@ -2094,6 +2557,7 @@ class Game {
 
     Render.background(ctx, camX, t, this.level);
     Render.tiles(ctx, this.level, camX, camY);
+    Render.trails(ctx, this.attempts, camX, camY);
     for (const cp of this.checkpoints) Render.checkpoint(ctx, cp, camX, camY, t);
     Render.flag(ctx, this.flag, camX, camY, t);
     for (const s of this.springs) Render.spring(ctx, s, camX, camY);
@@ -2102,6 +2566,9 @@ class Game {
       if (e instanceof Ghost) Render.ghost(ctx, e, camX, camY, t);
       else Render.walker(ctx, e, camX, camY, t);
     }
+    for (const f of this.flames) Render.flame(ctx, f, camX, camY, t);
+    const target = this.state === "playing" ? this.bashTarget() : null;
+    if (target) Render.bashRing(ctx, target, camX, camY, t);
     Render.player(ctx, this.player, camX, camY, t);
 
     ctx.save();
@@ -2109,12 +2576,27 @@ class Game {
     this.particles.draw(ctx);
     ctx.restore();
 
+    Render.foreground(ctx, camX, camY, this.level, t);
+    const p = this.player;
+    Render.lighting(ctx, p.x + p.w / 2 - camX, p.y + p.h / 2 - camY, p.dead);
+
+    if (this.pixelMode) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      this.ctx.imageSmoothingEnabled = false;
+      this.ctx.drawImage(this.lowCanvas, 0, 0, this.lowCanvas.width * GAME.pixelScale, this.lowCanvas.height * GAME.pixelScale);
+    }
+    this.drawOverlay(this.ctx);
+  }
+
+  // HUD, banners and menus are always drawn at full resolution.
+  drawOverlay(ctx) {
     if (this.fade > 0) {
       ctx.fillStyle = `rgba(0, 0, 0, ${this.fade})`;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     }
     if (this.introTimer > 0 && (this.state === "playing" || this.state === "paused")) {
-      Render.levelIntro(ctx, this.levelIndex + 1, this.level.name, this.introTimer / GAME.levelIntroTime);
+      const tip = this.level.tip.replace("{spell}", Input.touchMode ? "✦" : "X");
+      Render.levelIntro(ctx, this.levelIndex + 1, this.level.name, tip, this.introTimer / GAME.levelIntroTime);
     }
     if (this.state !== "title") Render.hud(ctx, this);
     this.drawScreens(ctx);
@@ -2131,6 +2613,9 @@ class Game {
           touch
             ? "◀ ▶ to move   ·   JUMP to jump   ·   ▼ to drop through planks"
             : "← → to move   ·   Space to jump   ·   ↓ to drop through planks",
+          touch
+            ? "✦ spirit flame (hold to heal)   ·   JUMP by a ghost in mid-air to bash   ·   ▦ pixel art"
+            : "X spirit flame (hold to heal)   ·   Jump by a ghost in mid-air to bash   ·   V pixel art",
           blink(this.clock) ? (touch ? "Tap the screen to start" : "Press ENTER or click to start") : "",
           best,
         ], { dim: 0.45, time: this.clock });
@@ -2178,6 +2663,23 @@ class Game {
 
 function blink(t) {
   return Math.floor(t * 2) % 2 === 0;
+}
+
+// Small settings (like pixel mode) also persist, if storage is allowed.
+function loadSetting(key) {
+  try {
+    return localStorage.getItem("spookySlither." + key);
+  } catch {
+    return null;
+  }
+}
+
+function saveSetting(key, value) {
+  try {
+    localStorage.setItem("spookySlither." + key, value);
+  } catch {
+    // Storage blocked — the setting just won't be remembered.
+  }
 }
 
 // Best score persists between visits (if the browser allows storage).

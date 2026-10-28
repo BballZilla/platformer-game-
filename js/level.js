@@ -17,6 +17,7 @@
 const LEVELS = [
   {
     name: "Haunted Hills",
+    tip: "Stomp pumpkins to fill your soul orb, then tap {spell} to throw a spirit flame",
     sky: ["#120a24", "#2e1747", "#7a3b55"],   // top, middle, horizon
     moon: "#fdf3c4",
     map: [
@@ -41,6 +42,7 @@ const LEVELS = [
   },
   {
     name: "Graveyard Crypt",
+    tip: "In mid-air, jump next to a ghost to bash off it and fly higher",
     sky: ["#06141a", "#123a3a", "#3f6b4a"],
     moon: "#e6ffd9",
     map: [
@@ -65,6 +67,7 @@ const LEVELS = [
   },
   {
     name: "Witch's Peak",
+    tip: "With a full soul orb, hold {spell} to heal one life",
     sky: ["#14040a", "#3d0c1c", "#8a2b1f"],
     moon: "#ff8a66",
     map: [
@@ -99,8 +102,9 @@ const LEVELS = [
 const SOLID_TILES = new Set(["#", "B"]);
 
 class Level {
-  constructor({ name, sky, moon, map }) {
+  constructor({ name, tip, sky, moon, map }) {
     this.name = name;
+    this.tip = tip;
     this.sky = sky;
     this.moon = moon;
     this.rows = map.length;

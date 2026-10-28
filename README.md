@@ -26,9 +26,13 @@ to the `main` branch and save. GitHub then gives you a link such as
 | Drop through wooden platforms | ↓ or S |
 | Pause | P or Esc |
 | Mute | M |
+| Spirit flame (tap) / heal (hold, needs a full soul orb) | X, F or Shift |
+| Bash off a ghost | Jump in mid-air next to a ghost |
+| Pixel-art mode on/off | V |
 
 **On a phone or tablet** on-screen buttons appear automatically: ◀ ▶ to move,
-**JUMP** to jump, ▼ to drop through platforms, ❚❚ to pause and ♪ to mute.
+**JUMP** to jump, ▼ to drop through platforms, ✦ for the spirit flame / heal,
+▦ for pixel-art mode, ❚❚ to pause and ♪ to mute.
 Turn the phone sideways for the biggest screen.
 
 You're a snake slithering through three haunted levels at night. Grab candy
@@ -45,6 +49,32 @@ level you were on.
 Your best score is saved in the browser.
 
 ## Features
+
+**Mechanics inspired by other games**
+
+- **Soul orb (risk-reward, like Hollow Knight):** stomping enemies fills the orb.
+  Spend a third of it on a spirit flame that destroys an enemy from a distance,
+  or save up a full orb and hold the spell key to heal a life (up to 5). Flame
+  kills don't refill soul, so you have to play aggressively to earn it.
+- **Ghost bash (momentum, like Ori's Bash):** in mid-air, press jump next to a
+  ghost to launch off it. The ghost is knocked away and stunned; a dashed ring
+  shows when one is in range. Chain bashes to reach high places.
+- **Death trails (like Super Meat Boy):** every death leaves a dotted line of
+  the route you took and a skull where it ended, so you can see what went wrong.
+  Trails stay while you retry the same level.
+
+**Art & depth**
+
+- Flat vector art drawn with canvas shapes, so it stays sharp at any size, plus
+  a **pixel-art mode** (V) that renders the world at 1/3 resolution and scales it
+  up without smoothing.
+- Five parallax layers: mountains (0.1x), far hills (0.25x), near hills (0.5x),
+  the level (1x) and a foreground of grass, fences and vines (1.35x).
+- Contrast: a pool of light around the snake with darker screen edges, a rim
+  glow on the snake, and a red glow on spikes so hazards read instantly.
+
+**Everything else**
+
 
 - Three tile-based levels written as text (easy to edit or add to — see `js/level.js`)
 - Each level has its own sky and moon colours, a title banner, and levels can be

@@ -76,8 +76,8 @@ body.touch #touch-controls {
 }
 
 .touch-move { left: 2%; bottom: 3%; width: 25%; }
-.touch-act  { right: 2%; bottom: 3%; width: 22%; justify-content: flex-end; }
-.touch-menu { right: 2%; top: 3%; width: 13%; justify-content: flex-end; }
+.touch-act  { right: 2%; bottom: 3%; width: 30%; justify-content: flex-end; }
+.touch-menu { right: 2%; top: 3%; width: 19%; justify-content: flex-end; }
 
 #touch-controls button {
   pointer-events: auto;
@@ -93,9 +93,9 @@ body.touch #touch-controls {
   padding: 0;
 }
 
-#touch-controls .jump { width: 60%; font-size: clamp(12px, 2.2vw, 22px); }
-#touch-controls .small { width: 36%; font-size: clamp(11px, 2vw, 20px); }
-.touch-menu button.small { width: 46%; }
+#touch-controls .jump { width: 44%; font-size: clamp(12px, 2.2vw, 22px); }
+#touch-controls .small { width: 26%; font-size: clamp(11px, 2vw, 20px); }
+.touch-menu button.small { width: 30%; }
 
 #touch-controls button.active {
   background: rgba(255, 211, 77, 0.55);

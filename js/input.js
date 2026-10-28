@@ -16,6 +16,8 @@ const KEY_BINDINGS = {
   pause: ["KeyP", "Escape", "TouchPause"],
   start: ["Enter", "Space", "TouchJump"],
   mute:  ["KeyM", "TouchMute"],
+  spell: ["KeyX", "KeyF", "ShiftLeft", "ShiftRight", "TouchSpell"],
+  pixel: ["KeyV", "TouchPixel"],
 };
 
 const Input = {

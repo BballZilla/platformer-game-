@@ -47,4 +47,9 @@ const Sound = {
   // A spooky minor-key tune
   win()        { [440, 523, 659, 622, 523, 440, 659, 880].forEach((f, i) => this.tone(f, 0.22, { delay: i * 0.13, volume: 0.08, type: "triangle" })); },
   select()     { this.tone(660, 0.1, { volume: 0.08 }); },
+  flame()      { this.tone(700, 0.25, { slideTo: 200, type: "sawtooth", volume: 0.07 }); },
+  bash()       { this.tone(150, 0.12, { slideTo: 600, type: "square", volume: 0.12 }); this.tone(900, 0.2, { slideTo: 1400, type: "triangle", volume: 0.06, delay: 0.05 }); },
+  heal()       { [392, 523, 659, 784].forEach((f, i) => this.tone(f, 0.25, { delay: i * 0.07, type: "sine", volume: 0.1 })); },
+  soulFull()   { this.tone(1047, 0.3, { type: "sine", volume: 0.07 }); },
+  fizzle()     { this.tone(180, 0.1, { slideTo: 120, type: "triangle", volume: 0.06 }); },
 };

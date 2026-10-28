@@ -45,6 +45,33 @@ const GHOST = {
   speed: 1.4,               // how fast it swings back and forth
 };
 
+// Soul: a risk-reward resource. Stomping enemies fills it; you spend it on a
+// spirit flame (tap the spell key) or on healing (hold it while full).
+const SOUL = {
+  max: 100,
+  perStomp: 34,             // 3 stomps fill the orb
+  flameCost: 34,
+  healCost: 100,
+  healHoldTime: 0.7,        // seconds to hold the spell key to heal
+  tapTime: 0.25,            // released quicker than this = a tap (cast flame)
+  maxLives: 5,
+};
+
+const FLAME = {
+  speed: 560,
+  life: 1.0,                // seconds before it fizzles out
+};
+
+// Ghost bash: in mid-air, press jump next to a ghost to launch off it.
+const BASH = {
+  range: 70,                // distance (centre to centre) a ghost can be bashed from
+  speedUp: 820,
+  speedSide: 520,
+  boostTime: 0.35,          // the sideways launch can exceed normal max speed this long
+  stunTime: 1.0,            // a bashed ghost is harmless this long
+  hitstop: 0.07,            // tiny freeze frame to make the bash feel punchy
+};
+
 const GAME = {
   startLives: 3,            // lives are refilled at the start of every level
   respawnDelay: 1.2,        // seconds between dying and respawning
@@ -53,7 +80,9 @@ const GAME = {
   timeBonusPar: 180,        // finish faster than this (seconds) for a time bonus
   timeBonusPerSecond: 50,
   lifeBonus: 1000,
-  levelIntroTime: 2.2,      // how long the "LEVEL 2 - ..." banner shows
+  levelIntroTime: 3.0,      // how long the "LEVEL 2 - ..." banner shows
+  trailsKept: 5,            // how many past attempts are drawn as death trails
+  pixelScale: 3,            // pixel-art mode renders at 1/3 resolution
 };
 
 const COLORS = {

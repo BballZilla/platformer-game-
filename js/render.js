@@ -56,6 +56,11 @@ const Render = {
       this.bat(ctx, x, y, b.size, time * 14 + b.phase);
     }
 
+    // Parallax layers, back to front. Each scrolls slower the further away it
+    // is: mountains 0.1x the camera, far hills 0.25x, near hills 0.5x, the
+    // level itself 1x, and the foreground (drawn later) 1.35x.
+    this.mountains(ctx, camX * 0.1);
+
     // Far hills with a haunted house, near hills with dead trees
     const farOffset = camX * 0.25;
     const houseX = 1250 - farOffset;
@@ -106,6 +111,164 @@ const Render = {
     ctx.beginPath();
     ctx.arc(x, y + 1, 4 * s, 0, Math.PI * 2);
     ctx.fill();
+  },
+
+  // Jagged distant mountain range, faded into the sky
+  mountains(ctx, offset) {
+    ctx.fillStyle = "rgba(25, 12, 40, 0.55)";
+    ctx.beginPath();
+    ctx.moveTo(0, VIEW_H);
+    const step = 70;
+    const first = Math.floor(offset / step);
+    for (let i = first; i <= first + Math.ceil(VIEW_W / step) + 1; i++) {
+      const peak = i % 2 === 0;
+      const y = peak ? 210 + hash(i) * 70 : 300 + hash(i) * 40;
+      ctx.lineTo(i * step - offset, y);
+    }
+    ctx.lineTo(VIEW_W, VIEW_H);
+    ctx.fill();
+  },
+
+  // Foreground silhouettes that pass in front of everything, moving faster
+  // than the camera — the strongest depth cue in a side-scroller.
+  foreground(ctx, camX, camY, level, time) {
+    const offset = camX * 1.35;
+    ctx.fillStyle = "rgba(4, 1, 8, 0.92)";
+    // Grass clumps and fence posts along the bottom edge
+    const spacing = 230;
+    const first = Math.floor(offset / spacing) - 1;
+    for (let i = first; i <= first + 6; i++) {
+      const x = i * spacing + hash(i + 900) * 120 - offset;
+      if (hash(i + 950) < 0.35) {
+        // iron fence post with a spike on top
+        ctx.fillRect(x, VIEW_H - 70, 7, 70);
+        ctx.beginPath();
+        ctx.moveTo(x - 3, VIEW_H - 70); ctx.lineTo(x + 3.5, VIEW_H - 84); ctx.lineTo(x + 10, VIEW_H - 70);
+        ctx.fill();
+        ctx.fillRect(x - 40, VIEW_H - 52, 90, 5);
+      } else {
+        // a clump of tall grass blades swaying in the wind
+        ctx.beginPath();
+        for (let k = 0; k < 7; k++) {
+          const bx = x + k * 7;
+          const h = 22 + hash(i * 7 + k) * 32;
+          const sway = Math.sin(time * 1.6 + i + k * 0.4) * 5;
+          ctx.moveTo(bx - 3, VIEW_H);
+          ctx.quadraticCurveTo(bx + sway * 0.5, VIEW_H - h * 0.6, bx + sway, VIEW_H - h);
+          ctx.quadraticCurveTo(bx + 1 + sway * 0.5, VIEW_H - h * 0.6, bx + 3, VIEW_H);
+        }
+        ctx.fill();
+      }
+    }
+    // Branches hanging down from the top edge
+    const tSpacing = 520;
+    const tFirst = Math.floor(offset / tSpacing) - 1;
+    ctx.strokeStyle = "rgba(4, 1, 8, 0.92)";
+    ctx.lineCap = "round";
+    for (let i = tFirst; i <= tFirst + 3; i++) {
+      if (hash(i + 990) < 0.4) continue;
+      const x = i * tSpacing + hash(i + 970) * 200 - offset;
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.moveTo(x - 80, -5);
+      ctx.quadraticCurveTo(x, 30 + hash(i) * 20, x + 90, -5);
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      for (let k = 0; k < 4; k++) {           // dangling vines
+        const vx = x - 40 + k * 28;
+        const len = 25 + hash(i * 3 + k) * 45;
+        const sway = Math.sin(time * 1.3 + k) * 4;
+        ctx.beginPath();
+        ctx.moveTo(vx, 14);
+        ctx.quadraticCurveTo(vx + sway, 14 + len / 2, vx + sway * 1.5, 14 + len);
+        ctx.stroke();
+      }
+    }
+  },
+
+  // Darken the edges of the screen and leave a pool of light around the
+  // snake. This keeps the player the brightest, clearest thing on screen.
+  lighting(ctx, px, py, dead) {
+    const cx = dead ? VIEW_W / 2 : px;
+    const cy = dead ? VIEW_H / 2 : py;
+    const g = ctx.createRadialGradient(cx, cy, 120, cx, cy, 640);
+    g.addColorStop(0, "rgba(5, 0, 15, 0)");
+    g.addColorStop(1, "rgba(5, 0, 15, 0.6)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  },
+
+  // Past attempts on this level: a dotted route and a skull where you died.
+  // Older attempts are fainter.
+  trails(ctx, attempts, camX, camY) {
+    const n = attempts.length;
+    attempts.forEach((a, i) => {
+      const alpha = 0.15 + 0.35 * ((i + 1) / n);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = "#ff5d73";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 6]);
+      ctx.beginPath();
+      a.path.forEach((pt, k) => {
+        if (k === 0) ctx.moveTo(pt.x - camX, pt.y - camY);
+        else ctx.lineTo(pt.x - camX, pt.y - camY);
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      this.skull(ctx, a.death.x - camX, a.death.y - camY);
+      ctx.restore();
+    });
+  },
+
+  skull(ctx, x, y) {
+    ctx.fillStyle = "#f1e9ff";
+    ctx.beginPath();
+    ctx.arc(x, y - 2, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(x - 4, y + 3, 8, 5);
+    ctx.fillStyle = "#1a1020";
+    ctx.fillRect(x - 4, y - 4, 3, 3);
+    ctx.fillRect(x + 1, y - 4, 3, 3);
+    ctx.fillRect(x - 1, y + 4, 2, 4);
+  },
+
+  // Spirit flame: a violet fireball with a flickering tail.
+  flame(ctx, f, camX, camY, time) {
+    const x = f.x + f.w / 2 - camX;
+    const y = f.y + f.h / 2 - camY;
+    const dir = Math.sign(f.vx);
+    const glow = ctx.createRadialGradient(x, y, 2, x, y, 26);
+    glow.addColorStop(0, "rgba(196, 181, 253, 0.8)");
+    glow.addColorStop(1, "rgba(196, 181, 253, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - 26, y - 26, 52, 52);
+    ctx.fillStyle = "#a78bfa";
+    ctx.beginPath();
+    ctx.moveTo(x + dir * 9, y);
+    ctx.quadraticCurveTo(x, y - 9, x - dir * (22 + Math.sin(time * 40) * 4), y + Math.sin(time * 30) * 3);
+    ctx.quadraticCurveTo(x, y + 9, x + dir * 9, y);
+    ctx.fill();
+    ctx.fillStyle = "#f5f3ff";
+    ctx.beginPath();
+    ctx.arc(x + dir * 2, y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+  },
+
+  // Pulsing ring that shows "you can bash this ghost right now".
+  bashRing(ctx, g, camX, camY, time) {
+    const x = g.x + g.w / 2 - camX;
+    const y = g.y + g.h / 2 - camY;
+    ctx.save();
+    ctx.strokeStyle = "#a5f3fc";
+    ctx.globalAlpha = 0.6 + 0.4 * Math.sin(time * 12);
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([6, 5]);
+    ctx.lineDashOffset = -time * 30;
+    ctx.beginPath();
+    ctx.arc(x, y, 22 + Math.sin(time * 12) * 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   },
 
   hillY(wx, baseY, amp, freq) {
@@ -267,6 +430,12 @@ const Render = {
   },
 
   spikes(ctx, x, y) {
+    // A faint red glow behind every spike so hazards read instantly.
+    const glow = ctx.createLinearGradient(0, y + TILE, 0, y);
+    glow.addColorStop(0, "rgba(255, 70, 90, 0.35)");
+    glow.addColorStop(1, "rgba(255, 70, 90, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(x, y - 4, TILE, TILE + 4);
     for (let i = 0; i < 4; i++) {
       const sx = x + i * 8;
       ctx.fillStyle = COLORS.spikeDark;
@@ -303,6 +472,14 @@ const Render = {
     // Head rears up above the front of the body, cobra style.
     const hx = p.x + p.w / 2 - camX + p.facing * 2;
     const hy = p.y + p.h - camY - 16;
+    // Soft rim light behind the head so the snake stands out from the dark
+    // background; it brightens while you hold the spell key to heal.
+    const halo = ctx.createRadialGradient(hx, hy, 4, hx, hy, 42 + p.glow * 30);
+    halo.addColorStop(0, `rgba(170, 255, 150, ${0.18 + p.glow * 0.5})`);
+    halo.addColorStop(1, "rgba(170, 255, 150, 0)");
+    ctx.fillStyle = halo;
+    ctx.fillRect(hx - 80, hy - 80, 160, 160);
+
     // Neck: a few circles from the head down to the first body segment.
     if (segs.length) {
       const s0 = segs[0];
@@ -610,7 +787,7 @@ const Render = {
   // ---- HUD & screens ----
   hud(ctx, game) {
     ctx.fillStyle = "rgba(10, 5, 20, 0.55)";
-    this.roundRect(ctx, 10, 10, 480, 40, 10);
+    this.roundRect(ctx, 10, 10, 580, 40, 10);
     ctx.fill();
     ctx.font = "bold 20px 'Trebuchet MS', sans-serif";
     ctx.textBaseline = "middle";
@@ -622,13 +799,48 @@ const Render = {
     ctx.fillText(`${game.coins}/${game.totalCoins}`, 46, 31);
 
     // Lives as little hearts
-    for (let i = 0; i < game.lives; i++) this.heart(ctx, 135 + i * 24, 30, COLORS.accent);
+    for (let i = 0; i < game.lives; i++) this.heart(ctx, 132 + i * 22, 30, COLORS.accent);
 
     ctx.fillStyle = COLORS.hud;
-    ctx.fillText(`${String(game.score).padStart(6, "0")}`, 220, 31);
-    ctx.fillText(`⏱ ${formatTime(game.time)}`, 320, 31);
+    ctx.fillText(`${String(game.score).padStart(6, "0")}`, 250, 31);
+    ctx.fillText(`⏱ ${formatTime(game.time)}`, 345, 31);
     ctx.fillStyle = COLORS.accent;
-    ctx.fillText(`LV ${game.levelIndex + 1}`, 420, 31);
+    ctx.fillText(`LV ${game.levelIndex + 1}`, 440, 31);
+    this.soulOrb(ctx, 530, 30, game.soul / SOUL.max, game.clock);
+    if (!Input.touchMode) {
+      ctx.font = "bold 14px 'Trebuchet MS', sans-serif";
+      ctx.fillStyle = "#c4b5fd";
+      ctx.fillText("X", 552, 31);
+    }
+  },
+
+  // Soul orb: fills from the bottom; glows and pulses when full.
+  soulOrb(ctx, x, y, fill, time) {
+    const r = 13;
+    if (fill >= 1) {
+      const g = ctx.createRadialGradient(x, y, r, x, y, r + 12);
+      g.addColorStop(0, `rgba(167, 139, 250, ${0.5 + 0.3 * Math.sin(time * 6)})`);
+      g.addColorStop(1, "rgba(167, 139, 250, 0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(x - r - 12, y - r - 12, (r + 12) * 2, (r + 12) * 2);
+    }
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#1c1430";
+    ctx.fill();
+    ctx.clip();
+    ctx.fillStyle = "#a78bfa";
+    const h = r * 2 * fill;
+    ctx.fillRect(x - r, y + r - h, r * 2, h);
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.fillRect(x - r, y + r - h, r * 2, Math.min(2, h));
+    ctx.restore();
+    ctx.strokeStyle = "#e9d5ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
   },
 
   heart(ctx, x, y, color) {
@@ -670,14 +882,14 @@ const Render = {
   },
 
   // "LEVEL 2 / Graveyard Crypt" banner that slides in and fades out.
-  levelIntro(ctx, number, name, t) {
+  levelIntro(ctx, number, name, tip, t) {
     // t goes from 1 (just started) to 0 (finished)
     const alpha = Math.min(1, t * 4, (1 - t) * 6);
     const slide = (1 - Math.min(1, (1 - t) * 6)) * -40;
     ctx.save();
     ctx.globalAlpha = Math.max(0, alpha);
     ctx.fillStyle = "rgba(8, 3, 16, 0.6)";
-    ctx.fillRect(0, 150 + slide, VIEW_W, 110);
+    ctx.fillRect(0, 150 + slide, VIEW_W, 140);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
@@ -686,6 +898,9 @@ const Render = {
     ctx.font = "bold 44px 'Trebuchet MS', sans-serif";
     ctx.fillStyle = "#fff";
     ctx.fillText(name, VIEW_W / 2, 222 + slide);
+    ctx.font = "18px 'Trebuchet MS', sans-serif";
+    ctx.fillStyle = "#c4b5fd";
+    ctx.fillText(tip, VIEW_W / 2, 266 + slide);
     ctx.restore();
   },
 
