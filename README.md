@@ -5,7 +5,15 @@ Canvas. No engine, libraries, build step, or image/sound files are needed.
 
 ## How to play
 
-**Run it:** open `index.html` in any modern browser (double-clicking it works).
+**Download it:**
+1. On this repository's GitHub page, click the green **Code** button, then **Download ZIP**.
+2. Unzip the file (on Windows: right-click it → **Extract All**).
+3. In the unzipped folder, double-click **`index.html`** — it opens in your browser.
+   (Open it from the unzipped folder, not from inside the ZIP.)
+
+**Play it online (optional):** in the repo go to **Settings → Pages**, set the source
+to the `main` branch and save. GitHub then gives you a link such as
+`https://<your-username>.github.io/platformer-game-/` that anyone can play.
 
 | Action | Keys |
 | --- | --- |
