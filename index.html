@@ -8,6 +8,14 @@
 </head>
 <body>
   <main>
+    <!-- Shown only if the game's script files fail to load; game.js removes it. -->
+    <div id="load-error" style="max-width:640px;padding:24px;border-radius:12px;background:#fff3cd;color:#5c4400;font:18px/1.5 sans-serif">
+      <b>The game didn't load.</b><br>
+      This page needs the <code>css</code> and <code>js</code> folders next to it.
+      If you downloaded a ZIP, extract it first (right-click &rarr; <b>Extract All</b>),
+      then open <code>index.html</code> from the extracted folder.<br>
+      Or just open <b><code>sky-hopper.html</code></b> &mdash; it's the whole game in one file.
+    </div>
     <canvas id="game" width="960" height="544">
       Your browser does not support the HTML5 canvas.
     </canvas>

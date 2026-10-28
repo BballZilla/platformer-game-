@@ -5,11 +5,15 @@ Canvas. No engine, libraries, build step, or image/sound files are needed.
 
 ## How to play
 
-**Download it:**
+**Easiest:** download **`sky-hopper.html`** (the whole game in one file — on
+GitHub click it, then the download button ↓ at the top right) and double-click it.
+
+**Or download everything:**
 1. On this repository's GitHub page, click the green **Code** button, then **Download ZIP**.
 2. Unzip the file (on Windows: right-click it → **Extract All**).
 3. In the unzipped folder, double-click **`index.html`** — it opens in your browser.
-   (Open it from the unzipped folder, not from inside the ZIP.)
+   (Open it from the unzipped folder, not from inside the ZIP — otherwise it can't
+   find the `css` and `js` folders.)
 
 **Play it online (optional):** in the repo go to **Settings → Pages**, set the source
 to the `main` branch and save. GitHub then gives you a link such as
@@ -43,6 +47,8 @@ Your best score is saved in the browser.
 ## Project structure
 
 ```
+sky-hopper.html    the whole game in one file (generated — don't edit)
+tools/build_standalone.py   regenerates sky-hopper.html after you change the code
 index.html         page + canvas, loads the scripts in order
 css/style.css      page layout / canvas scaling
 js/config.js       all tunable constants (physics, scoring, colors)

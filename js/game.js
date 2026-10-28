@@ -334,6 +334,7 @@ function saveBestScore(score) {
 // The screen may refresh at 60, 120 or 144 Hz, but physics always advances in
 // steps of exactly STEP seconds, so the game plays the same on every machine.
 // ---------------------------------------------------------------------------
+document.getElementById("load-error")?.remove();
 const canvas = document.getElementById("game");
 const game = new Game(canvas);
 Input.init();
