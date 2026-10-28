@@ -1,6 +1,6 @@
-# Spooky Slither — a one-level Halloween platformer
+# Spooky Slither — a Halloween platformer
 
-A complete single-level 2D platformer written in plain JavaScript with the HTML5
+A complete three-level 2D platformer written in plain JavaScript with the HTML5
 Canvas. No engine, libraries, build step, or image/sound files are needed.
 
 ## How to play
@@ -31,20 +31,30 @@ to the `main` branch and save. GitHub then gives you a link such as
 **JUMP** to jump, ▼ to drop through platforms, ❚❚ to pause and ♪ to mute.
 Turn the phone sideways for the biggest screen.
 
-You're a snake slithering through haunted hills at night. Grab candy corn, squash
-pumpkins by landing on top of them, avoid spikes and pits, and reach the
-checkered flag. You have 3 lives; lighting a lantern checkpoint makes it your
-respawn point. Finishing faster and with lives left gives bonus points.
+You're a snake slithering through three haunted levels at night. Grab candy
+corn, squash pumpkins and ghosts by landing on top of them, avoid spikes and
+pits, and reach the checkered flag. You get 3 lives per level; lighting a
+lantern checkpoint makes it your respawn point. A game over lets you retry the
+level you were on.
+
+| Level | Name | What's new |
+| --- | --- | --- |
+| 1 | Haunted Hills | Learn the basics: pumpkins, springs, planks, spikes |
+| 2 | Graveyard Crypt | Ghosts that float through walls, a low crypt, stepping-stone pillars |
+| 3 | Witch's Peak | A tall level: climb a tower, cross a broken bridge over a spike pit | Finishing faster and with lives left gives bonus points.
 Your best score is saved in the browser.
 
 ## Features
 
-- Tile-based level written as text (easy to edit — see `js/level.js`)
+- Three tile-based levels written as text (easy to edit or add to — see `js/level.js`)
+- Each level has its own sky and moon colours, a title banner, and levels can be
+  taller than the screen (the camera scrolls up and down)
 - Fixed-timestep physics with axis-separated tile collision
 - "Game feel" techniques: coyote time, jump buffering, variable jump height,
   squash & stretch, camera look-ahead, screen shake, particles
 - Solid tiles, one-way platforms (drop through with ↓), spikes, bottomless pits
 - Patrolling pumpkin enemies that turn at walls, ledges and spikes; stomp to defeat
+- Ghost enemies that float back and forth through walls; also stompable
 - Springs, candy corn, lantern checkpoints, goal flag
 - A snake hero whose body is a little rope simulation (Verlet integration):
   it trails on the ground, dangles while jumping and wiggles as it slithers
@@ -64,9 +74,9 @@ js/config.js       all tunable constants (physics, scoring, colors)
 js/input.js        keyboard -> actions ("left", "jump", ...)
 js/touch.js        on-screen buttons for phones and tablets
 js/audio.js        synthesized sound effects
-js/level.js        level map, tile lookup, collision against tiles
+js/level.js        the levels (maps, names, colours), tile lookup, tile collision
 js/particles.js    particle effects
-js/entities.js     Player, Walker (enemy), Coin, Spring, Checkpoint, Flag
+js/entities.js     Player, Walker and Ghost (enemies), Coin, Spring, Checkpoint, Flag
 js/render.js       all drawing code
 js/game.js         game state machine, interactions, camera, main loop
 ```
@@ -89,7 +99,8 @@ js/game.js         game state machine, interactions, camera, main loop
 
 ## Ideas for extending it
 
-- Add more levels (make `LEVEL_MAP` an array of maps and load the next on win)
+- Add more levels: copy an entry in `LEVELS` (`js/level.js`), give it a name,
+  sky colours and a new map. The game picks it up automatically.
 - Replace the shape drawing in `render.js` with sprite sheets (`ctx.drawImage`)
 - New enemy types (jumping, flying, shooting), moving platforms, power-ups
 - Gamepad support via the Gamepad API

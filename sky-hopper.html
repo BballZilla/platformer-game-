@@ -214,14 +214,22 @@ const ENEMY = {
   squashTime: 0.5,          // how long the squashed body stays on screen
 };
 
+const GHOST = {
+  width: 24,
+  height: 24,
+  range: 2.5 * TILE,        // how far it floats left/right of where it starts
+  speed: 1.4,               // how fast it swings back and forth
+};
+
 const GAME = {
-  startLives: 3,
+  startLives: 3,            // lives are refilled at the start of every level
   respawnDelay: 1.2,        // seconds between dying and respawning
   coinScore: 100,
   stompScore: 200,
   timeBonusPar: 180,        // finish faster than this (seconds) for a time bonus
   timeBonusPerSecond: 50,
   lifeBonus: 1000,
+  levelIntroTime: 2.2,      // how long the "LEVEL 2 - ..." banner shows
 };
 
 const COLORS = {
@@ -448,47 +456,115 @@ const Sound = {
 // ---------------------------------------------------------------------------
 // level.js — the level map and tile collision.
 //
-// The level is drawn as text: one character per 32x32 tile. Edit the map
-// below to redesign the level — rows can be any length (they're padded).
+// Each level is drawn as text: one character per 32x32 tile. Edit the maps
+// below to redesign a level, or add another entry to LEVELS to add a level.
+// Rows can be any length (they're padded), and a level can be taller than
+// the screen — the camera follows the player up and down.
 //
 //   #  ground (solid)          B  brick (solid)
 //   -  one-way platform        ^  spikes (deadly)
 //   P  player start            E  enemy (walker)
 //   o  coin                    S  spring
 //   C  checkpoint              F  goal flag
+//   G  ghost (floats back and forth, ignores walls)
 // ---------------------------------------------------------------------------
 
-const LEVEL_MAP = [
-  "#                                                                                                                                                              #",
-  "#                                                                                                                                                              #",
-  "#                                                                                                                                                              #",
-  "#                                                                                                                                                              #",
-  "#                                                                                                                                                              #",
-  "#                                                                         oooooooo                                                                             #",
-  "#                                                                        ----------                                                                            #",
-  "#                                                                                                                                                              #",
-  "#                                                                                                                                                     o        #",
-  "#                                                                                                     o    oooE                            oo        ---       #",
-  "#                oooo                                                                                ---  BBBBBB                           BB     oo           #",
-  "#                BBBB     oo         ooo     ooo oo                                    ooo        o               ooo                      BB     BB           #",
-  "#       ooo              o  o       -----       ----      BBB     Boooo               -----      ---             -----                 BB  BB  BB BB        F  #",
-  "#            BB                  BB                       BBB    BB     S                                                       BB     BB  BB  BB BB     #######",
-  "#  P         BB      E           BB ^^^^^              E  BBB C BBB    BBB    ^^^^     E     S              E           C     E BB  E  BB  BB  BB BB     #######",
-  "#########################    ############    ###    ###################     ####################^^^^^^^^#########     ##########################################",
-  "#########################    ############    ###    ###################     #####################################     ##########################################",
+const LEVELS = [
+  {
+    name: "Haunted Hills",
+    sky: ["#120a24", "#2e1747", "#7a3b55"],   // top, middle, horizon
+    moon: "#fdf3c4",
+    map: [
+      "#                                                                                                                                                              #",
+      "#                                                                                                                                                              #",
+      "#                                                                                                                                                              #",
+      "#                                                                                                                                                              #",
+      "#                                                                                                                                                              #",
+      "#                                                                         oooooooo                                                                             #",
+      "#                                                                        ----------                                                                            #",
+      "#                                                                                                                                                              #",
+      "#                                                                                                                                                     o        #",
+      "#                                                                                                     o    oooE                            oo        ---       #",
+      "#                oooo                                                                                ---  BBBBBB                           BB     oo           #",
+      "#                BBBB     oo         ooo     ooo oo                                    ooo        o               ooo                      BB     BB           #",
+      "#       ooo              o  o       -----       ----      BBB     Boooo               -----      ---             -----                 BB  BB  BB BB        F  #",
+      "#            BB                  BB                       BBB    BB     S                                                       BB     BB  BB  BB BB     #######",
+      "#  P         BB      E           BB ^^^^^              E  BBB C BBB    BBB    ^^^^     E     S              E           C     E BB  E  BB  BB  BB BB     #######",
+      "#########################    ############    ###    ###################     ####################^^^^^^^^#########     ##########################################",
+      "#########################    ############    ###    ###################     #####################################     ##########################################",
+    ],
+  },
+  {
+    name: "Graveyard Crypt",
+    sky: ["#06141a", "#123a3a", "#3f6b4a"],
+    moon: "#e6ffd9",
+    map: [
+      "#",
+      "#",
+      "#",
+      "#",
+      "#",
+      "#",
+      "#",
+      "#",
+      "#                             G                              ooooooooooooo                                      oo",
+      "#                                             G             BBBBBBBBBBBBBBB                                     BB",
+      "#                                                           BBBBBBBBBBBBBBB                  G                  BB",
+      "#            G              ooooo          oo                                           oooo                 BB BB   G               o",
+      "#     oooo            oo  ---------   oo   BB   oo                                   G  ----          o      BB BB        o         ---           F",
+      "#                    o  o             BB   BB   BB           o o o   o o o                                BB BB BB                             ######",
+      "#  P             E         ^^^^^^^    BB   BB   BB    C  S      E  ^^  E           E           ^^^      C BB BB BB              E  ^   E       ######",
+      "#####################    ##########   ##   ##   ##   #######################    #####################   #################   ##########################",
+      "#####################    ##########   ##   ##   ##   #######################    #####################   #################   ##########################",
+    ],
+  },
+  {
+    name: "Witch's Peak",
+    sky: ["#14040a", "#3d0c1c", "#8a2b1f"],
+    moon: "#ff8a66",
+    map: [
+      "#",
+      "#",
+      "#                                                                                                ooo",
+      "#",
+      "#                                                         G",
+      "#                                                   ooo       ooo",
+      "#                                      ooo     C           E         E",
+      "#                                     ----- BBBBBBBB   BBBBBBB   BBBBBBBBBBB                               o",
+      "#                                           BB                                                       G          E   F",
+      "#                                 ooo       BB                                              o                ###########",
+      "#                                -----      BB                                                    S          ###########",
+      "#                                           BB                                ooo     ooo     ############   ###########",
+      "#                                      ooo  BB                                    E           ############   ###########",
+      "#                                     ----- BB                              ###############   ############   ###########",
+      "#                                           BB                              ###############   ############   ###########",
+      "#                                 ooo       BB                              ###############   ############   ###########",
+      "#                                -----      BB                              ###############   ############   ###########",
+      "#                                           BB                              ###############   ############   ###########",
+      "#          o    G        oooo          ooo  BB                              ###############   ############   ###########",
+      "#    ooo  o o        o   ----         ----- BB                              ###############   ############   ###########",
+      "#                                           BB                              ###############   ############   ###########",
+      "#  P    E         E       ^^  C             BB^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^###############   ############   ###########",
+      "##########   #######   ####################################################################   ############   ###########",
+      "##########   #######   ####################################################################   ############   ###########",
+    ],
+  },
 ];
 
 const SOLID_TILES = new Set(["#", "B"]);
 
 class Level {
-  constructor(map) {
+  constructor({ name, sky, moon, map }) {
+    this.name = name;
+    this.sky = sky;
+    this.moon = moon;
     this.rows = map.length;
     this.cols = Math.max(...map.map((row) => row.length));
     this.width = this.cols * TILE;
     this.height = this.rows * TILE;
 
     // Entity spawn points found in the map. Their tiles become empty space.
-    this.spawns = { player: null, enemies: [], coins: [], springs: [], checkpoints: [], flag: null };
+    this.spawns = { player: null, enemies: [], ghosts: [], coins: [], springs: [], checkpoints: [], flag: null };
     this.tiles = [];
 
     for (let r = 0; r < this.rows; r++) {
@@ -500,6 +576,7 @@ class Level {
         switch (ch) {
           case "P": this.spawns.player = spawn; break;
           case "E": this.spawns.enemies.push(spawn); break;
+          case "G": this.spawns.ghosts.push(spawn); break;
           case "o": this.spawns.coins.push(spawn); break;
           case "S": this.spawns.springs.push(spawn); break;
           case "C": this.spawns.checkpoints.push(spawn); break;
@@ -829,9 +906,17 @@ class Player {
         if (cameFromAbove) {
           p.y = tileTop;
         } else {
-          p.x = p.px; // hit the side of a wall: undo this step's move
-          p.y = p.py;
+          // Hit the side of a wall: undo the sideways part of the move so the
+          // point slides up/down the wall instead of passing through it.
+          p.x = p.px;
+          if (level.isSolid(Math.floor(p.x / TILE), Math.floor(p.y / TILE))) p.y = p.py;
         }
+      }
+
+      // Safety net: if a point got stuck far behind, pull it back to the chain.
+      if (Math.hypot(p.x - front.x, p.y - front.y) > PLAYER.bodySpacing * 2) {
+        p.x = p.px = front.x;
+        p.y = p.py = front.y;
       }
     }
   }
@@ -904,6 +989,48 @@ class Walker {
 
   lastDir() {
     return this.dir || -1;
+  }
+
+  squash() {
+    this.alive = false;
+    this.squashTimer = ENEMY.squashTime;
+  }
+}
+
+// ===========================================================================
+// Ghost enemy — floats left and right through walls, bobbing up and down.
+// It doesn't use tile collision at all: its position is just a sine wave.
+// Like the walker it can be stomped, so it has the same alive/squash/removable.
+// ===========================================================================
+class Ghost {
+  constructor(spawn) {
+    this.w = GHOST.width;
+    this.h = GHOST.height;
+    this.homeX = spawn.col * TILE + (TILE - this.w) / 2;
+    this.homeY = spawn.row * TILE + (TILE - this.h) / 2;
+    this.x = this.homeX;
+    this.y = this.homeY;
+    this.dir = 1;
+    this.alive = true;
+    this.squashTimer = 0;
+    this.animTime = spawn.col; // so ghosts aren't all in sync
+  }
+
+  get removable() {
+    return !this.alive && this.squashTimer <= 0;
+  }
+
+  update(dt) {
+    if (!this.alive) {
+      this.squashTimer -= dt;
+      this.y -= 40 * dt; // the defeated ghost drifts upward as it fades
+      return;
+    }
+    this.animTime += dt;
+    const swing = Math.sin(this.animTime * GHOST.speed);
+    this.x = this.homeX + swing * GHOST.range;
+    this.y = this.homeY + Math.sin(this.animTime * 3) * 6;
+    this.dir = Math.cos(this.animTime * GHOST.speed) >= 0 ? 1 : -1;
   }
 
   squash() {
@@ -989,11 +1116,12 @@ const BATS = Array.from({ length: 6 }, (_, i) => ({
 
 const Render = {
   // ---- Background (parallax: far layers scroll slower than near ones) ----
-  background(ctx, camX, time) {
+  // Each level has its own sky colours and moon colour (see LEVELS).
+  background(ctx, camX, time, level) {
     const sky = ctx.createLinearGradient(0, 0, 0, VIEW_H);
-    sky.addColorStop(0, COLORS.skyTop);
-    sky.addColorStop(0.55, COLORS.skyMid);
-    sky.addColorStop(1, COLORS.skyBottom);
+    sky.addColorStop(0, level.sky[0]);
+    sky.addColorStop(0.55, level.sky[1]);
+    sky.addColorStop(1, level.sky[2]);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
@@ -1006,7 +1134,7 @@ const Render = {
     }
     ctx.globalAlpha = 1;
 
-    this.moon(ctx, 760 - camX * 0.02, 110);
+    this.moon(ctx, 760 - camX * 0.02, 110, level.moon);
 
     // Bats flapping across the sky
     for (const b of BATS) {
@@ -1035,13 +1163,13 @@ const Render = {
     }
   },
 
-  moon(ctx, x, y) {
+  moon(ctx, x, y, color) {
     const glow = ctx.createRadialGradient(x, y, 40, x, y, 140);
-    glow.addColorStop(0, "rgba(253, 243, 196, 0.35)");
-    glow.addColorStop(1, "rgba(253, 243, 196, 0)");
+    glow.addColorStop(0, color + "59"); // "59" = about 35% opacity
+    glow.addColorStop(1, color + "00");
     ctx.fillStyle = glow;
     ctx.fillRect(x - 140, y - 140, 280, 280);
-    ctx.fillStyle = COLORS.moon;
+    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(x, y, 48, 0, Math.PI * 2);
     ctx.fill();
@@ -1406,6 +1534,54 @@ const Render = {
     ctx.restore();
   },
 
+  // ---- Ghost enemy ----
+  ghost(ctx, g, camX, camY, time) {
+    const x = g.x + g.w / 2 - camX;
+    const y = g.y - camY;
+    const fade = g.alive ? 1 : Math.max(0, g.squashTimer / ENEMY.squashTime);
+    const flicker = 0.8 + 0.1 * Math.sin(time * 9 + g.homeX);
+
+    ctx.save();
+    ctx.globalAlpha = fade * flicker;
+    ctx.translate(x, y);
+    ctx.scale(g.dir, 1);
+
+    // Soft glow
+    const glow = ctx.createRadialGradient(0, 12, 4, 0, 12, 26);
+    glow.addColorStop(0, "rgba(220, 235, 255, 0.35)");
+    glow.addColorStop(1, "rgba(220, 235, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(-26, -14, 52, 52);
+
+    // Body: round head, wavy bottom edge that ripples over time
+    ctx.fillStyle = "#eef4ff";
+    ctx.beginPath();
+    ctx.arc(0, 11, 12, Math.PI, 0);
+    ctx.lineTo(12, 22);
+    for (let i = 0; i <= 4; i++) {
+      const wx = 12 - i * 6;
+      ctx.lineTo(wx, 22 + Math.sin(time * 8 + i * 1.8) * 3 + (i % 2 ? 2 : 0));
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Face: hollow eyes and an "oooo" mouth; squinting when defeated
+    ctx.fillStyle = "#1a1020";
+    if (g.alive) {
+      ctx.beginPath();
+      ctx.ellipse(1, 9, 2.4, 3.4, 0, 0, Math.PI * 2);
+      ctx.ellipse(8, 9, 2.4, 3.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(5, 16, 2, 2.6 + Math.sin(time * 4) * 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(-1, 9, 5, 2);
+      ctx.fillRect(6, 9, 5, 2);
+    }
+    ctx.restore();
+  },
+
   // ---- Candy corn (the "coins") ----
   coin(ctx, c, camX, camY, time) {
     const bob = Math.sin(time * 3 + c.phase) * 3;
@@ -1522,7 +1698,7 @@ const Render = {
   // ---- HUD & screens ----
   hud(ctx, game) {
     ctx.fillStyle = "rgba(10, 5, 20, 0.55)";
-    this.roundRect(ctx, 10, 10, 410, 40, 10);
+    this.roundRect(ctx, 10, 10, 480, 40, 10);
     ctx.fill();
     ctx.font = "bold 20px 'Trebuchet MS', sans-serif";
     ctx.textBaseline = "middle";
@@ -1539,6 +1715,8 @@ const Render = {
     ctx.fillStyle = COLORS.hud;
     ctx.fillText(`${String(game.score).padStart(6, "0")}`, 220, 31);
     ctx.fillText(`⏱ ${formatTime(game.time)}`, 320, 31);
+    ctx.fillStyle = COLORS.accent;
+    ctx.fillText(`LV ${game.levelIndex + 1}`, 420, 31);
   },
 
   heart(ctx, x, y, color) {
@@ -1579,6 +1757,26 @@ const Render = {
     lines.forEach((line, i) => ctx.fillText(line, VIEW_W / 2, top + 90 + i * 36));
   },
 
+  // "LEVEL 2 / Graveyard Crypt" banner that slides in and fades out.
+  levelIntro(ctx, number, name, t) {
+    // t goes from 1 (just started) to 0 (finished)
+    const alpha = Math.min(1, t * 4, (1 - t) * 6);
+    const slide = (1 - Math.min(1, (1 - t) * 6)) * -40;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.fillStyle = "rgba(8, 3, 16, 0.6)";
+    ctx.fillRect(0, 150 + slide, VIEW_W, 110);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
+    ctx.fillStyle = COLORS.accent;
+    ctx.fillText(`LEVEL ${number}`, VIEW_W / 2, 178 + slide);
+    ctx.font = "bold 44px 'Trebuchet MS', sans-serif";
+    ctx.fillStyle = "#fff";
+    ctx.fillText(name, VIEW_W / 2, 222 + slide);
+    ctx.restore();
+  },
+
   roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -1602,7 +1800,9 @@ function formatTime(seconds) {
 //
 // States:  title -> playing <-> paused
 //                   playing -> dying -> playing (respawn) or gameover
-//                   playing -> won
+//                   playing -> levelclear -> playing (next level)
+//                   playing -> won (after the last level)
+//          gameover -> playing (retry the same level)
 // ---------------------------------------------------------------------------
 
 class Game {
@@ -1613,19 +1813,33 @@ class Game {
     this.time = 0;          // level timer (only runs while playing)
     this.clock = 0;         // always-running clock for animations
     this.bestScore = loadBestScore();
-    this.reset();
+    this.newGame();
   }
 
-  // Build a fresh copy of the level and everything in it.
-  reset() {
-    this.level = new Level(LEVEL_MAP);
+  // Start again from level 1 with a score of zero.
+  newGame() {
+    this.score = 0;
+    this.candyTotal = 0;    // candy collected across all finished levels
+    this.candyMax = 0;
+    this.totalTime = 0;
+    this.loadLevel(0);
+  }
+
+  // Build a fresh copy of a level and everything in it.
+  loadLevel(index) {
+    this.levelIndex = index;
+    this.level = new Level(LEVELS[index]);
+    this.levelStartScore = this.score; // restored if you get a game over
     const s = this.level.spawns;
     const start = spawnOnTile(s.player, PLAYER.width, PLAYER.height);
 
     this.startPoint = start;
     this.respawnPoint = start;
     this.player = new Player(start.x, start.y);
-    this.enemies = s.enemies.map((sp) => new Walker(sp));
+    this.enemies = [
+      ...s.enemies.map((sp) => new Walker(sp)),
+      ...s.ghosts.map((sp) => new Ghost(sp)),
+    ];
     this.coinList = s.coins.map((sp) => new Coin(sp));
     this.springs = s.springs.map((sp) => new Spring(sp));
     this.checkpoints = s.checkpoints.map((sp) => new Checkpoint(sp));
@@ -1634,16 +1848,14 @@ class Game {
 
     this.totalCoins = this.coinList.length;
     this.coins = 0;
-    this.score = 0;
     this.lives = GAME.startLives;
     this.time = 0;
     this.deathTimer = 0;
     this.shake = 0;
     this.fade = 0;          // 0..1 black overlay used when dying / respawning
     this.result = null;
+    this.introTimer = GAME.levelIntroTime;
 
-    this.camX = 0;
-    this.camY = this.level.height - VIEW_H;
     this.snapCamera();
   }
 
@@ -1666,11 +1878,20 @@ class Game {
         break;
 
       case "gameover":
+      case "levelclear":
       case "won":
         this.particles.update(dt);
+        // The short delay stops a held jump button skipping the screen.
         if (Input.pressed("start") && this.clock - this.endedAt > 0.5) {
           Sound.select();
-          this.reset();
+          if (this.state === "gameover") {
+            this.score = this.levelStartScore; // retry this level
+            this.loadLevel(this.levelIndex);
+          } else if (this.state === "levelclear") {
+            this.loadLevel(this.levelIndex + 1);
+          } else {
+            this.newGame();
+          }
           this.state = "playing";
         }
         break;
@@ -1688,6 +1909,7 @@ class Game {
           break;
         }
         this.time += dt;
+        this.introTimer = Math.max(0, this.introTimer - dt);
         this.player.update(dt, this.level, this.particles);
         this.updateEnemies(dt);
         this.handleInteractions();
@@ -1791,13 +2013,21 @@ class Game {
     // Bonuses for finishing quickly and with lives to spare.
     const timeBonus = Math.max(0, Math.floor(GAME.timeBonusPar - this.time)) * GAME.timeBonusPerSecond;
     const lifeBonus = this.lives * GAME.lifeBonus;
-    this.result = { base: this.score, timeBonus, lifeBonus };
+    this.result = { base: this.score - this.levelStartScore, timeBonus, lifeBonus };
     this.score += timeBonus + lifeBonus;
+    this.candyTotal += this.coins;
+    this.candyMax += this.totalCoins;
+    this.totalTime += this.time;
     Sound.win();
     for (let i = 0; i < 4; i++) {
       this.particles.burst(this.flag.x, this.flag.y + i * 30, 20, { color: [COLORS.accent, COLORS.candyBase, "#a855f7", COLORS.snake, "#fff"], speed: 320, life: 1.4, gravity: 300, size: 5 });
     }
-    this.endGame("won");
+    if (this.levelIndex < LEVELS.length - 1) {
+      this.state = "levelclear";
+      this.endedAt = this.clock;
+    } else {
+      this.endGame("won");
+    }
   }
 
   endGame(state) {
@@ -1811,15 +2041,22 @@ class Game {
   }
 
   // ---- Camera ---------------------------------------------------------------
-  // Follows the player smoothly, looks a little ahead in the facing direction,
-  // and never shows anything below or beside the level.
+  // Follows the player smoothly and looks a little ahead in the facing
+  // direction. Vertically it only moves when the player gets close to the top
+  // or bottom of the screen, so small jumps don't make the view bob around.
+  // It never shows anything below or beside the level.
 
-  cameraTarget() {
+  cameraTargetX() {
     const p = this.player;
-    return {
-      x: p.x + p.w / 2 - VIEW_W / 2 + p.facing * 60,
-      y: p.y - 150, // only scroll up once the player is near the top of the screen
-    };
+    return p.x + p.w / 2 - VIEW_W / 2 + p.facing * 60;
+  }
+
+  cameraTargetY() {
+    const p = this.player;
+    let y = this.camY;
+    if (p.y - y < 150) y = p.y - 150;                                     // near the top
+    if (p.y + p.h - y > VIEW_H - 140) y = p.y + p.h - (VIEW_H - 140);    // near the bottom
+    return y;
   }
 
   clampCamera() {
@@ -1828,17 +2065,16 @@ class Game {
   }
 
   snapCamera() {
-    const t = this.cameraTarget();
-    this.camX = t.x;
-    this.camY = t.y;
+    const p = this.player;
+    this.camX = this.cameraTargetX();
+    this.camY = p.y + p.h - (VIEW_H - 140);
     this.clampCamera();
   }
 
   updateCamera(dt) {
     if (this.state !== "playing") return;
-    const t = this.cameraTarget();
-    this.camX += (t.x - this.camX) * Math.min(1, 6 * dt);
-    this.camY += (t.y - this.camY) * Math.min(1, 4 * dt);
+    this.camX += (this.cameraTargetX() - this.camX) * Math.min(1, 6 * dt);
+    this.camY += (this.cameraTargetY() - this.camY) * Math.min(1, 6 * dt);
     this.clampCamera();
   }
 
@@ -1856,13 +2092,16 @@ class Game {
     camY = Math.round(camY);
     const t = this.clock;
 
-    Render.background(ctx, camX, t);
+    Render.background(ctx, camX, t, this.level);
     Render.tiles(ctx, this.level, camX, camY);
     for (const cp of this.checkpoints) Render.checkpoint(ctx, cp, camX, camY, t);
     Render.flag(ctx, this.flag, camX, camY, t);
     for (const s of this.springs) Render.spring(ctx, s, camX, camY);
     for (const c of this.coinList) if (!c.collected) Render.coin(ctx, c, camX, camY, t);
-    for (const e of this.enemies) Render.walker(ctx, e, camX, camY, t);
+    for (const e of this.enemies) {
+      if (e instanceof Ghost) Render.ghost(ctx, e, camX, camY, t);
+      else Render.walker(ctx, e, camX, camY, t);
+    }
     Render.player(ctx, this.player, camX, camY, t);
 
     ctx.save();
@@ -1874,6 +2113,9 @@ class Game {
       ctx.fillStyle = `rgba(0, 0, 0, ${this.fade})`;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     }
+    if (this.introTimer > 0 && (this.state === "playing" || this.state === "paused")) {
+      Render.levelIntro(ctx, this.levelIndex + 1, this.level.name, this.introTimer / GAME.levelIntroTime);
+    }
     if (this.state !== "title") Render.hud(ctx, this);
     this.drawScreens(ctx);
   }
@@ -1884,8 +2126,8 @@ class Game {
     switch (this.state) {
       case "title":
         Render.screen(ctx, "SPOOKY SLITHER", [
-          "Slither through the haunted hills! Grab candy corn,",
-          "squash pumpkins and reach the flag.",
+          `Slither through ${LEVELS.length} haunted levels! Grab candy corn,`,
+          "squash pumpkins and ghosts, and reach the flag.",
           touch
             ? "◀ ▶ to move   ·   JUMP to jump   ·   ▼ to drop through planks"
             : "← → to move   ·   Space to jump   ·   ↓ to drop through planks",
@@ -1903,20 +2145,33 @@ class Game {
           `Score: ${this.score}   ·   Candy: ${this.coins}/${this.totalCoins}`,
           this.newBest ? "New best score!" : best,
           "",
-          blink(this.clock) ? touch ? "Tap the screen to try again" : "Press ENTER or click to try again" : "",
+          blink(this.clock)
+            ? `${touch ? "Tap the screen" : "Press ENTER or click"} to retry level ${this.levelIndex + 1}`
+            : "",
         ], { titleColor: "#c084fc", time: this.clock });
         break;
-      case "won": {
+      case "levelclear": {
         const r = this.result;
         Render.screen(ctx, "LEVEL CLEAR!", [
-          `Candy: ${this.coins}/${this.totalCoins}   ·   Time: ${formatTime(this.time)}`,
-          `Score ${r.base}  +  time bonus ${r.timeBonus}  +  lives bonus ${r.lifeBonus}`,
-          `Final score: ${this.score}` + (this.newBest ? "   — New best!" : ""),
+          `${this.level.name}   ·   Candy: ${this.coins}/${this.totalCoins}   ·   Time: ${formatTime(this.time)}`,
+          `Level score ${r.base}  +  time bonus ${r.timeBonus}  +  lives bonus ${r.lifeBonus}`,
+          `Total score: ${this.score}`,
           "",
-          blink(this.clock) ? touch ? "Tap the screen to play again" : "Press ENTER or click to play again" : "",
+          blink(this.clock)
+            ? `${touch ? "Tap the screen" : "Press ENTER or click"} for level ${this.levelIndex + 2}: ${LEVELS[this.levelIndex + 1].name}`
+            : "",
         ], { titleColor: COLORS.candyBase, dim: 0.45, time: this.clock });
         break;
       }
+      case "won":
+        Render.screen(ctx, "YOU WIN!", [
+          `You conquered all ${LEVELS.length} levels!`,
+          `Candy: ${this.candyTotal}/${this.candyMax}   ·   Total time: ${formatTime(this.totalTime)}`,
+          `Final score: ${this.score}` + (this.newBest ? "   — New best!" : ""),
+          "",
+          blink(this.clock) ? `${touch ? "Tap the screen" : "Press ENTER or click"} to play again` : "",
+        ], { titleColor: COLORS.candyBase, dim: 0.45, time: this.clock });
+        break;
     }
   }
 }

@@ -38,14 +38,22 @@ const ENEMY = {
   squashTime: 0.5,          // how long the squashed body stays on screen
 };
 
+const GHOST = {
+  width: 24,
+  height: 24,
+  range: 2.5 * TILE,        // how far it floats left/right of where it starts
+  speed: 1.4,               // how fast it swings back and forth
+};
+
 const GAME = {
-  startLives: 3,
+  startLives: 3,            // lives are refilled at the start of every level
   respawnDelay: 1.2,        // seconds between dying and respawning
   coinScore: 100,
   stompScore: 200,
   timeBonusPar: 180,        // finish faster than this (seconds) for a time bonus
   timeBonusPerSecond: 50,
   lifeBonus: 1000,
+  levelIntroTime: 2.2,      // how long the "LEVEL 2 - ..." banner shows
 };
 
 const COLORS = {

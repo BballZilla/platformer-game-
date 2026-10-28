@@ -28,11 +28,12 @@ const BATS = Array.from({ length: 6 }, (_, i) => ({
 
 const Render = {
   // ---- Background (parallax: far layers scroll slower than near ones) ----
-  background(ctx, camX, time) {
+  // Each level has its own sky colours and moon colour (see LEVELS).
+  background(ctx, camX, time, level) {
     const sky = ctx.createLinearGradient(0, 0, 0, VIEW_H);
-    sky.addColorStop(0, COLORS.skyTop);
-    sky.addColorStop(0.55, COLORS.skyMid);
-    sky.addColorStop(1, COLORS.skyBottom);
+    sky.addColorStop(0, level.sky[0]);
+    sky.addColorStop(0.55, level.sky[1]);
+    sky.addColorStop(1, level.sky[2]);
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
@@ -45,7 +46,7 @@ const Render = {
     }
     ctx.globalAlpha = 1;
 
-    this.moon(ctx, 760 - camX * 0.02, 110);
+    this.moon(ctx, 760 - camX * 0.02, 110, level.moon);
 
     // Bats flapping across the sky
     for (const b of BATS) {
@@ -74,13 +75,13 @@ const Render = {
     }
   },
 
-  moon(ctx, x, y) {
+  moon(ctx, x, y, color) {
     const glow = ctx.createRadialGradient(x, y, 40, x, y, 140);
-    glow.addColorStop(0, "rgba(253, 243, 196, 0.35)");
-    glow.addColorStop(1, "rgba(253, 243, 196, 0)");
+    glow.addColorStop(0, color + "59"); // "59" = about 35% opacity
+    glow.addColorStop(1, color + "00");
     ctx.fillStyle = glow;
     ctx.fillRect(x - 140, y - 140, 280, 280);
-    ctx.fillStyle = COLORS.moon;
+    ctx.fillStyle = color;
     ctx.beginPath();
     ctx.arc(x, y, 48, 0, Math.PI * 2);
     ctx.fill();
@@ -445,6 +446,54 @@ const Render = {
     ctx.restore();
   },
 
+  // ---- Ghost enemy ----
+  ghost(ctx, g, camX, camY, time) {
+    const x = g.x + g.w / 2 - camX;
+    const y = g.y - camY;
+    const fade = g.alive ? 1 : Math.max(0, g.squashTimer / ENEMY.squashTime);
+    const flicker = 0.8 + 0.1 * Math.sin(time * 9 + g.homeX);
+
+    ctx.save();
+    ctx.globalAlpha = fade * flicker;
+    ctx.translate(x, y);
+    ctx.scale(g.dir, 1);
+
+    // Soft glow
+    const glow = ctx.createRadialGradient(0, 12, 4, 0, 12, 26);
+    glow.addColorStop(0, "rgba(220, 235, 255, 0.35)");
+    glow.addColorStop(1, "rgba(220, 235, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(-26, -14, 52, 52);
+
+    // Body: round head, wavy bottom edge that ripples over time
+    ctx.fillStyle = "#eef4ff";
+    ctx.beginPath();
+    ctx.arc(0, 11, 12, Math.PI, 0);
+    ctx.lineTo(12, 22);
+    for (let i = 0; i <= 4; i++) {
+      const wx = 12 - i * 6;
+      ctx.lineTo(wx, 22 + Math.sin(time * 8 + i * 1.8) * 3 + (i % 2 ? 2 : 0));
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Face: hollow eyes and an "oooo" mouth; squinting when defeated
+    ctx.fillStyle = "#1a1020";
+    if (g.alive) {
+      ctx.beginPath();
+      ctx.ellipse(1, 9, 2.4, 3.4, 0, 0, Math.PI * 2);
+      ctx.ellipse(8, 9, 2.4, 3.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(5, 16, 2, 2.6 + Math.sin(time * 4) * 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(-1, 9, 5, 2);
+      ctx.fillRect(6, 9, 5, 2);
+    }
+    ctx.restore();
+  },
+
   // ---- Candy corn (the "coins") ----
   coin(ctx, c, camX, camY, time) {
     const bob = Math.sin(time * 3 + c.phase) * 3;
@@ -561,7 +610,7 @@ const Render = {
   // ---- HUD & screens ----
   hud(ctx, game) {
     ctx.fillStyle = "rgba(10, 5, 20, 0.55)";
-    this.roundRect(ctx, 10, 10, 410, 40, 10);
+    this.roundRect(ctx, 10, 10, 480, 40, 10);
     ctx.fill();
     ctx.font = "bold 20px 'Trebuchet MS', sans-serif";
     ctx.textBaseline = "middle";
@@ -578,6 +627,8 @@ const Render = {
     ctx.fillStyle = COLORS.hud;
     ctx.fillText(`${String(game.score).padStart(6, "0")}`, 220, 31);
     ctx.fillText(`⏱ ${formatTime(game.time)}`, 320, 31);
+    ctx.fillStyle = COLORS.accent;
+    ctx.fillText(`LV ${game.levelIndex + 1}`, 420, 31);
   },
 
   heart(ctx, x, y, color) {
@@ -616,6 +667,26 @@ const Render = {
     ctx.font = "22px 'Trebuchet MS', sans-serif";
     ctx.fillStyle = "#fff";
     lines.forEach((line, i) => ctx.fillText(line, VIEW_W / 2, top + 90 + i * 36));
+  },
+
+  // "LEVEL 2 / Graveyard Crypt" banner that slides in and fades out.
+  levelIntro(ctx, number, name, t) {
+    // t goes from 1 (just started) to 0 (finished)
+    const alpha = Math.min(1, t * 4, (1 - t) * 6);
+    const slide = (1 - Math.min(1, (1 - t) * 6)) * -40;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.fillStyle = "rgba(8, 3, 16, 0.6)";
+    ctx.fillRect(0, 150 + slide, VIEW_W, 110);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "bold 22px 'Trebuchet MS', sans-serif";
+    ctx.fillStyle = COLORS.accent;
+    ctx.fillText(`LEVEL ${number}`, VIEW_W / 2, 178 + slide);
+    ctx.font = "bold 44px 'Trebuchet MS', sans-serif";
+    ctx.fillStyle = "#fff";
+    ctx.fillText(name, VIEW_W / 2, 222 + slide);
+    ctx.restore();
   },
 
   roundRect(ctx, x, y, w, h, r) {

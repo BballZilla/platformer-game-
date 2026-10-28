@@ -157,9 +157,17 @@ class Player {
         if (cameFromAbove) {
           p.y = tileTop;
         } else {
-          p.x = p.px; // hit the side of a wall: undo this step's move
-          p.y = p.py;
+          // Hit the side of a wall: undo the sideways part of the move so the
+          // point slides up/down the wall instead of passing through it.
+          p.x = p.px;
+          if (level.isSolid(Math.floor(p.x / TILE), Math.floor(p.y / TILE))) p.y = p.py;
         }
+      }
+
+      // Safety net: if a point got stuck far behind, pull it back to the chain.
+      if (Math.hypot(p.x - front.x, p.y - front.y) > PLAYER.bodySpacing * 2) {
+        p.x = p.px = front.x;
+        p.y = p.py = front.y;
       }
     }
   }
@@ -232,6 +240,48 @@ class Walker {
 
   lastDir() {
     return this.dir || -1;
+  }
+
+  squash() {
+    this.alive = false;
+    this.squashTimer = ENEMY.squashTime;
+  }
+}
+
+// ===========================================================================
+// Ghost enemy — floats left and right through walls, bobbing up and down.
+// It doesn't use tile collision at all: its position is just a sine wave.
+// Like the walker it can be stomped, so it has the same alive/squash/removable.
+// ===========================================================================
+class Ghost {
+  constructor(spawn) {
+    this.w = GHOST.width;
+    this.h = GHOST.height;
+    this.homeX = spawn.col * TILE + (TILE - this.w) / 2;
+    this.homeY = spawn.row * TILE + (TILE - this.h) / 2;
+    this.x = this.homeX;
+    this.y = this.homeY;
+    this.dir = 1;
+    this.alive = true;
+    this.squashTimer = 0;
+    this.animTime = spawn.col; // so ghosts aren't all in sync
+  }
+
+  get removable() {
+    return !this.alive && this.squashTimer <= 0;
+  }
+
+  update(dt) {
+    if (!this.alive) {
+      this.squashTimer -= dt;
+      this.y -= 40 * dt; // the defeated ghost drifts upward as it fades
+      return;
+    }
+    this.animTime += dt;
+    const swing = Math.sin(this.animTime * GHOST.speed);
+    this.x = this.homeX + swing * GHOST.range;
+    this.y = this.homeY + Math.sin(this.animTime * 3) * 6;
+    this.dir = Math.cos(this.animTime * GHOST.speed) >= 0 ? 1 : -1;
   }
 
   squash() {

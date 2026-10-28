@@ -3,7 +3,9 @@
 //
 // States:  title -> playing <-> paused
 //                   playing -> dying -> playing (respawn) or gameover
-//                   playing -> won
+//                   playing -> levelclear -> playing (next level)
+//                   playing -> won (after the last level)
+//          gameover -> playing (retry the same level)
 // ---------------------------------------------------------------------------
 
 class Game {
@@ -14,19 +16,33 @@ class Game {
     this.time = 0;          // level timer (only runs while playing)
     this.clock = 0;         // always-running clock for animations
     this.bestScore = loadBestScore();
-    this.reset();
+    this.newGame();
   }
 
-  // Build a fresh copy of the level and everything in it.
-  reset() {
-    this.level = new Level(LEVEL_MAP);
+  // Start again from level 1 with a score of zero.
+  newGame() {
+    this.score = 0;
+    this.candyTotal = 0;    // candy collected across all finished levels
+    this.candyMax = 0;
+    this.totalTime = 0;
+    this.loadLevel(0);
+  }
+
+  // Build a fresh copy of a level and everything in it.
+  loadLevel(index) {
+    this.levelIndex = index;
+    this.level = new Level(LEVELS[index]);
+    this.levelStartScore = this.score; // restored if you get a game over
     const s = this.level.spawns;
     const start = spawnOnTile(s.player, PLAYER.width, PLAYER.height);
 
     this.startPoint = start;
     this.respawnPoint = start;
     this.player = new Player(start.x, start.y);
-    this.enemies = s.enemies.map((sp) => new Walker(sp));
+    this.enemies = [
+      ...s.enemies.map((sp) => new Walker(sp)),
+      ...s.ghosts.map((sp) => new Ghost(sp)),
+    ];
     this.coinList = s.coins.map((sp) => new Coin(sp));
     this.springs = s.springs.map((sp) => new Spring(sp));
     this.checkpoints = s.checkpoints.map((sp) => new Checkpoint(sp));
@@ -35,16 +51,14 @@ class Game {
 
     this.totalCoins = this.coinList.length;
     this.coins = 0;
-    this.score = 0;
     this.lives = GAME.startLives;
     this.time = 0;
     this.deathTimer = 0;
     this.shake = 0;
     this.fade = 0;          // 0..1 black overlay used when dying / respawning
     this.result = null;
+    this.introTimer = GAME.levelIntroTime;
 
-    this.camX = 0;
-    this.camY = this.level.height - VIEW_H;
     this.snapCamera();
   }
 
@@ -67,11 +81,20 @@ class Game {
         break;
 
       case "gameover":
+      case "levelclear":
       case "won":
         this.particles.update(dt);
+        // The short delay stops a held jump button skipping the screen.
         if (Input.pressed("start") && this.clock - this.endedAt > 0.5) {
           Sound.select();
-          this.reset();
+          if (this.state === "gameover") {
+            this.score = this.levelStartScore; // retry this level
+            this.loadLevel(this.levelIndex);
+          } else if (this.state === "levelclear") {
+            this.loadLevel(this.levelIndex + 1);
+          } else {
+            this.newGame();
+          }
           this.state = "playing";
         }
         break;
@@ -89,6 +112,7 @@ class Game {
           break;
         }
         this.time += dt;
+        this.introTimer = Math.max(0, this.introTimer - dt);
         this.player.update(dt, this.level, this.particles);
         this.updateEnemies(dt);
         this.handleInteractions();
@@ -192,13 +216,21 @@ class Game {
     // Bonuses for finishing quickly and with lives to spare.
     const timeBonus = Math.max(0, Math.floor(GAME.timeBonusPar - this.time)) * GAME.timeBonusPerSecond;
     const lifeBonus = this.lives * GAME.lifeBonus;
-    this.result = { base: this.score, timeBonus, lifeBonus };
+    this.result = { base: this.score - this.levelStartScore, timeBonus, lifeBonus };
     this.score += timeBonus + lifeBonus;
+    this.candyTotal += this.coins;
+    this.candyMax += this.totalCoins;
+    this.totalTime += this.time;
     Sound.win();
     for (let i = 0; i < 4; i++) {
       this.particles.burst(this.flag.x, this.flag.y + i * 30, 20, { color: [COLORS.accent, COLORS.candyBase, "#a855f7", COLORS.snake, "#fff"], speed: 320, life: 1.4, gravity: 300, size: 5 });
     }
-    this.endGame("won");
+    if (this.levelIndex < LEVELS.length - 1) {
+      this.state = "levelclear";
+      this.endedAt = this.clock;
+    } else {
+      this.endGame("won");
+    }
   }
 
   endGame(state) {
@@ -212,15 +244,22 @@ class Game {
   }
 
   // ---- Camera ---------------------------------------------------------------
-  // Follows the player smoothly, looks a little ahead in the facing direction,
-  // and never shows anything below or beside the level.
+  // Follows the player smoothly and looks a little ahead in the facing
+  // direction. Vertically it only moves when the player gets close to the top
+  // or bottom of the screen, so small jumps don't make the view bob around.
+  // It never shows anything below or beside the level.
 
-  cameraTarget() {
+  cameraTargetX() {
     const p = this.player;
-    return {
-      x: p.x + p.w / 2 - VIEW_W / 2 + p.facing * 60,
-      y: p.y - 150, // only scroll up once the player is near the top of the screen
-    };
+    return p.x + p.w / 2 - VIEW_W / 2 + p.facing * 60;
+  }
+
+  cameraTargetY() {
+    const p = this.player;
+    let y = this.camY;
+    if (p.y - y < 150) y = p.y - 150;                                     // near the top
+    if (p.y + p.h - y > VIEW_H - 140) y = p.y + p.h - (VIEW_H - 140);    // near the bottom
+    return y;
   }
 
   clampCamera() {
@@ -229,17 +268,16 @@ class Game {
   }
 
   snapCamera() {
-    const t = this.cameraTarget();
-    this.camX = t.x;
-    this.camY = t.y;
+    const p = this.player;
+    this.camX = this.cameraTargetX();
+    this.camY = p.y + p.h - (VIEW_H - 140);
     this.clampCamera();
   }
 
   updateCamera(dt) {
     if (this.state !== "playing") return;
-    const t = this.cameraTarget();
-    this.camX += (t.x - this.camX) * Math.min(1, 6 * dt);
-    this.camY += (t.y - this.camY) * Math.min(1, 4 * dt);
+    this.camX += (this.cameraTargetX() - this.camX) * Math.min(1, 6 * dt);
+    this.camY += (this.cameraTargetY() - this.camY) * Math.min(1, 6 * dt);
     this.clampCamera();
   }
 
@@ -257,13 +295,16 @@ class Game {
     camY = Math.round(camY);
     const t = this.clock;
 
-    Render.background(ctx, camX, t);
+    Render.background(ctx, camX, t, this.level);
     Render.tiles(ctx, this.level, camX, camY);
     for (const cp of this.checkpoints) Render.checkpoint(ctx, cp, camX, camY, t);
     Render.flag(ctx, this.flag, camX, camY, t);
     for (const s of this.springs) Render.spring(ctx, s, camX, camY);
     for (const c of this.coinList) if (!c.collected) Render.coin(ctx, c, camX, camY, t);
-    for (const e of this.enemies) Render.walker(ctx, e, camX, camY, t);
+    for (const e of this.enemies) {
+      if (e instanceof Ghost) Render.ghost(ctx, e, camX, camY, t);
+      else Render.walker(ctx, e, camX, camY, t);
+    }
     Render.player(ctx, this.player, camX, camY, t);
 
     ctx.save();
@@ -275,6 +316,9 @@ class Game {
       ctx.fillStyle = `rgba(0, 0, 0, ${this.fade})`;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     }
+    if (this.introTimer > 0 && (this.state === "playing" || this.state === "paused")) {
+      Render.levelIntro(ctx, this.levelIndex + 1, this.level.name, this.introTimer / GAME.levelIntroTime);
+    }
     if (this.state !== "title") Render.hud(ctx, this);
     this.drawScreens(ctx);
   }
@@ -285,8 +329,8 @@ class Game {
     switch (this.state) {
       case "title":
         Render.screen(ctx, "SPOOKY SLITHER", [
-          "Slither through the haunted hills! Grab candy corn,",
-          "squash pumpkins and reach the flag.",
+          `Slither through ${LEVELS.length} haunted levels! Grab candy corn,`,
+          "squash pumpkins and ghosts, and reach the flag.",
           touch
             ? "◀ ▶ to move   ·   JUMP to jump   ·   ▼ to drop through planks"
             : "← → to move   ·   Space to jump   ·   ↓ to drop through planks",
@@ -304,20 +348,33 @@ class Game {
           `Score: ${this.score}   ·   Candy: ${this.coins}/${this.totalCoins}`,
           this.newBest ? "New best score!" : best,
           "",
-          blink(this.clock) ? touch ? "Tap the screen to try again" : "Press ENTER or click to try again" : "",
+          blink(this.clock)
+            ? `${touch ? "Tap the screen" : "Press ENTER or click"} to retry level ${this.levelIndex + 1}`
+            : "",
         ], { titleColor: "#c084fc", time: this.clock });
         break;
-      case "won": {
+      case "levelclear": {
         const r = this.result;
         Render.screen(ctx, "LEVEL CLEAR!", [
-          `Candy: ${this.coins}/${this.totalCoins}   ·   Time: ${formatTime(this.time)}`,
-          `Score ${r.base}  +  time bonus ${r.timeBonus}  +  lives bonus ${r.lifeBonus}`,
-          `Final score: ${this.score}` + (this.newBest ? "   — New best!" : ""),
+          `${this.level.name}   ·   Candy: ${this.coins}/${this.totalCoins}   ·   Time: ${formatTime(this.time)}`,
+          `Level score ${r.base}  +  time bonus ${r.timeBonus}  +  lives bonus ${r.lifeBonus}`,
+          `Total score: ${this.score}`,
           "",
-          blink(this.clock) ? touch ? "Tap the screen to play again" : "Press ENTER or click to play again" : "",
+          blink(this.clock)
+            ? `${touch ? "Tap the screen" : "Press ENTER or click"} for level ${this.levelIndex + 2}: ${LEVELS[this.levelIndex + 1].name}`
+            : "",
         ], { titleColor: COLORS.candyBase, dim: 0.45, time: this.clock });
         break;
       }
+      case "won":
+        Render.screen(ctx, "YOU WIN!", [
+          `You conquered all ${LEVELS.length} levels!`,
+          `Candy: ${this.candyTotal}/${this.candyMax}   ·   Total time: ${formatTime(this.totalTime)}`,
+          `Final score: ${this.score}` + (this.newBest ? "   — New best!" : ""),
+          "",
+          blink(this.clock) ? `${touch ? "Tap the screen" : "Press ENTER or click"} to play again` : "",
+        ], { titleColor: COLORS.candyBase, dim: 0.45, time: this.clock });
+        break;
     }
   }
 }

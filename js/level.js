@@ -1,47 +1,115 @@
 // ---------------------------------------------------------------------------
 // level.js — the level map and tile collision.
 //
-// The level is drawn as text: one character per 32x32 tile. Edit the map
-// below to redesign the level — rows can be any length (they're padded).
+// Each level is drawn as text: one character per 32x32 tile. Edit the maps
+// below to redesign a level, or add another entry to LEVELS to add a level.
+// Rows can be any length (they're padded), and a level can be taller than
+// the screen — the camera follows the player up and down.
 //
 //   #  ground (solid)          B  brick (solid)
 //   -  one-way platform        ^  spikes (deadly)
 //   P  player start            E  enemy (walker)
 //   o  coin                    S  spring
 //   C  checkpoint              F  goal flag
+//   G  ghost (floats back and forth, ignores walls)
 // ---------------------------------------------------------------------------
 
-const LEVEL_MAP = [
-  "#                                                                                                                                                              #",
-  "#                                                                                                                                                              #",
-  "#                                                                                                                                                              #",
-  "#                                                                                                                                                              #",
-  "#                                                                                                                                                              #",
-  "#                                                                         oooooooo                                                                             #",
-  "#                                                                        ----------                                                                            #",
-  "#                                                                                                                                                              #",
-  "#                                                                                                                                                     o        #",
-  "#                                                                                                     o    oooE                            oo        ---       #",
-  "#                oooo                                                                                ---  BBBBBB                           BB     oo           #",
-  "#                BBBB     oo         ooo     ooo oo                                    ooo        o               ooo                      BB     BB           #",
-  "#       ooo              o  o       -----       ----      BBB     Boooo               -----      ---             -----                 BB  BB  BB BB        F  #",
-  "#            BB                  BB                       BBB    BB     S                                                       BB     BB  BB  BB BB     #######",
-  "#  P         BB      E           BB ^^^^^              E  BBB C BBB    BBB    ^^^^     E     S              E           C     E BB  E  BB  BB  BB BB     #######",
-  "#########################    ############    ###    ###################     ####################^^^^^^^^#########     ##########################################",
-  "#########################    ############    ###    ###################     #####################################     ##########################################",
+const LEVELS = [
+  {
+    name: "Haunted Hills",
+    sky: ["#120a24", "#2e1747", "#7a3b55"],   // top, middle, horizon
+    moon: "#fdf3c4",
+    map: [
+      "#                                                                                                                                                              #",
+      "#                                                                                                                                                              #",
+      "#                                                                                                                                                              #",
+      "#                                                                                                                                                              #",
+      "#                                                                                                                                                              #",
+      "#                                                                         oooooooo                                                                             #",
+      "#                                                                        ----------                                                                            #",
+      "#                                                                                                                                                              #",
+      "#                                                                                                                                                     o        #",
+      "#                                                                                                     o    oooE                            oo        ---       #",
+      "#                oooo                                                                                ---  BBBBBB                           BB     oo           #",
+      "#                BBBB     oo         ooo     ooo oo                                    ooo        o               ooo                      BB     BB           #",
+      "#       ooo              o  o       -----       ----      BBB     Boooo               -----      ---             -----                 BB  BB  BB BB        F  #",
+      "#            BB                  BB                       BBB    BB     S                                                       BB     BB  BB  BB BB     #######",
+      "#  P         BB      E           BB ^^^^^              E  BBB C BBB    BBB    ^^^^     E     S              E           C     E BB  E  BB  BB  BB BB     #######",
+      "#########################    ############    ###    ###################     ####################^^^^^^^^#########     ##########################################",
+      "#########################    ############    ###    ###################     #####################################     ##########################################",
+    ],
+  },
+  {
+    name: "Graveyard Crypt",
+    sky: ["#06141a", "#123a3a", "#3f6b4a"],
+    moon: "#e6ffd9",
+    map: [
+      "#",
+      "#",
+      "#",
+      "#",
+      "#",
+      "#",
+      "#",
+      "#",
+      "#                             G                              ooooooooooooo                                      oo",
+      "#                                             G             BBBBBBBBBBBBBBB                                     BB",
+      "#                                                           BBBBBBBBBBBBBBB                  G                  BB",
+      "#            G              ooooo          oo                                           oooo                 BB BB   G               o",
+      "#     oooo            oo  ---------   oo   BB   oo                                   G  ----          o      BB BB        o         ---           F",
+      "#                    o  o             BB   BB   BB           o o o   o o o                                BB BB BB                             ######",
+      "#  P             E         ^^^^^^^    BB   BB   BB    C  S      E  ^^  E           E           ^^^      C BB BB BB              E  ^   E       ######",
+      "#####################    ##########   ##   ##   ##   #######################    #####################   #################   ##########################",
+      "#####################    ##########   ##   ##   ##   #######################    #####################   #################   ##########################",
+    ],
+  },
+  {
+    name: "Witch's Peak",
+    sky: ["#14040a", "#3d0c1c", "#8a2b1f"],
+    moon: "#ff8a66",
+    map: [
+      "#",
+      "#",
+      "#                                                                                                ooo",
+      "#",
+      "#                                                         G",
+      "#                                                   ooo       ooo",
+      "#                                      ooo     C           E         E",
+      "#                                     ----- BBBBBBBB   BBBBBBB   BBBBBBBBBBB                               o",
+      "#                                           BB                                                       G          E   F",
+      "#                                 ooo       BB                                              o                ###########",
+      "#                                -----      BB                                                    S          ###########",
+      "#                                           BB                                ooo     ooo     ############   ###########",
+      "#                                      ooo  BB                                    E           ############   ###########",
+      "#                                     ----- BB                              ###############   ############   ###########",
+      "#                                           BB                              ###############   ############   ###########",
+      "#                                 ooo       BB                              ###############   ############   ###########",
+      "#                                -----      BB                              ###############   ############   ###########",
+      "#                                           BB                              ###############   ############   ###########",
+      "#          o    G        oooo          ooo  BB                              ###############   ############   ###########",
+      "#    ooo  o o        o   ----         ----- BB                              ###############   ############   ###########",
+      "#                                           BB                              ###############   ############   ###########",
+      "#  P    E         E       ^^  C             BB^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^###############   ############   ###########",
+      "##########   #######   ####################################################################   ############   ###########",
+      "##########   #######   ####################################################################   ############   ###########",
+    ],
+  },
 ];
 
 const SOLID_TILES = new Set(["#", "B"]);
 
 class Level {
-  constructor(map) {
+  constructor({ name, sky, moon, map }) {
+    this.name = name;
+    this.sky = sky;
+    this.moon = moon;
     this.rows = map.length;
     this.cols = Math.max(...map.map((row) => row.length));
     this.width = this.cols * TILE;
     this.height = this.rows * TILE;
 
     // Entity spawn points found in the map. Their tiles become empty space.
-    this.spawns = { player: null, enemies: [], coins: [], springs: [], checkpoints: [], flag: null };
+    this.spawns = { player: null, enemies: [], ghosts: [], coins: [], springs: [], checkpoints: [], flag: null };
     this.tiles = [];
 
     for (let r = 0; r < this.rows; r++) {
@@ -53,6 +121,7 @@ class Level {
         switch (ch) {
           case "P": this.spawns.player = spawn; break;
           case "E": this.spawns.enemies.push(spawn); break;
+          case "G": this.spawns.ghosts.push(spawn); break;
           case "o": this.spawns.coins.push(spawn); break;
           case "S": this.spawns.springs.push(spawn); break;
           case "C": this.spawns.checkpoints.push(spawn); break;
